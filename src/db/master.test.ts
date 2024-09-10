@@ -36,8 +36,6 @@ describe('master', () => {
 
             const results = await client.execute(`SELECT * FROM sqlite_master`);
 
-            client.close();
-
             expect(results.rows).toHaveLength(Object.keys(Tables).length);
         });
     });
