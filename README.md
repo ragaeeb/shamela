@@ -1,0 +1,5 @@
+# Shamela
+
+[![wakatime](https://wakatime.com/badge/user/a0b906ce-b8e7-4463-8bce-383238df6d4b/project/ff26a908-ad4b-4da5-9ad4-5283697583be.svg)](https://wakatime.com/badge/user/a0b906ce-b8e7-4463-8bce-383238df6d4b/project/ff26a908-ad4b-4da5-9ad4-5283697583be) [![E2E](https://github.com/ragaeeb/shamela/actions/workflows/e2e.yml/badge.svg)](https://github.com/ragaeeb/shamela/actions/workflows/e2e.yml) [![Node.js CI](https://github.com/ragaeeb/shamela/actions/workflows/build.yml/badge.svg)](https://github.com/ragaeeb/shamela/actions/workflows/build.yml) ![GitHub License](https://img.shields.io/github/license/ragaeeb/shamela) ![GitHub Release](https://img.shields.io/github/v/release/ragaeeb/shamela) [![codecov](https://codecov.io/github/ragaeeb/shamela/graph/badge.svg?token=9DWYN1ETDS)](https://codecov.io/github/ragaeeb/shamela) [![Size](https://deno.bundlejs.com/badge?q=shamela@1.2.0&badge=detailed)](https://bundlejs.com/?q=shamela%401.2.0) ![typescript](https://badgen.net/badge/icon/typescript?icon=typescript&label&color=blue)
+
+This script allows building the Shamela 4 library.

@@ -1,0 +1,67 @@
+{
+    "name": "shamela",
+    "version": "0.0.1",
+    "description": "Offline downloader for Maktabah al-Shamela",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ragaeeb/shamela-builder.git"
+    },
+    "private": false,
+    "main": "dist/main.js",
+    "types": "dist/index.d.ts",
+    "source": "src/index.ts",
+    "type": "module",
+    "engines": {
+        "node": ">=20.0.0"
+    },
+    "scripts": {
+        "build": "parcel build",
+        "test": "vitest run --coverage",
+        "e2e": "node --env-file .env $(which pnpm) exec vitest run --coverage --config vitest.e2e.config.ts",
+        "e2e:ci": "pnpm exec vitest --config vitest.e2e.config.ts --run"
+    },
+    "files": [
+        "dist/main.js",
+        "dist/main.js.map",
+        "dist/*.d.ts"
+    ],
+    "keywords": [
+        "shamela",
+        "Arabic",
+        "Islamic",
+        "Muslim"
+    ],
+    "author": "Ragaeeb Haq",
+    "license": "MIT",
+    "devDependencies": {
+        "@eslint/js": "^9.10.0",
+        "@parcel/packager-ts": "^2.12.0",
+        "@semantic-release/changelog": "^6.0.3",
+        "@semantic-release/git": "^10.0.1",
+        "@types/eslint__js": "^8.42.3",
+        "@types/node": "^22.5.4",
+        "@types/unzipper": "^0.10.10",
+        "@vitest/coverage-v8": "^2.0.5",
+        "dotenv-vault": "^1.26.2",
+        "eslint": "^9.10.0",
+        "eslint-config-prettier": "^9.1.0",
+        "eslint-plugin-import": "^2.30.0",
+        "eslint-plugin-perfectionist": "^3.5.0",
+        "eslint-plugin-prettier": "^5.2.1",
+        "eslint-plugin-vitest": "^0.5.4",
+        "eslint-plugin-vitest-globals": "^1.5.0",
+        "parcel": "^2.12.0",
+        "prettier": "^3.3.3",
+        "semantic-release": "^24.1.0",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.6.2",
+        "typescript-eslint": "^8.5.0",
+        "vitest": "^2.0.5"
+    },
+    "dependencies": {
+        "@libsql/client": "^0.10.0",
+        "pino": "^9.4.0",
+        "pino-pretty": "^11.2.2",
+        "unzipper": "^0.12.3"
+    }
+}

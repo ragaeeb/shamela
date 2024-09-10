@@ -1,0 +1,28 @@
+name: E2E
+
+on:
+    pull_request:
+        branches: [main]
+        types: [closed]
+
+jobs:
+    build:
+        if: github.event.pull_request.merged == true
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  lfs: true
+                  fetch-depth: 0
+
+            - name: Use Node.js 21.x
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 21.x
+            - name: Enable Corepack
+              run: corepack enable
+            - run: pnpm install --frozen-lockfile
+            - run: pnpm run build
+            - run: pnpm run test:e2e:ci
+              env:
+                  WIT_AI_API_KEYS: ${{secrets.WIT_AI_API_KEYS}}

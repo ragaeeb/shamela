@@ -1,0 +1,31 @@
+name: Semantic Release
+
+on:
+    push:
+        branches:
+            - main
+
+jobs:
+    semantic-release:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+            issues: write
+            pull-requests: none
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+                  persist-credentials: true
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 21
+            - name: Enable Corepack
+              run: corepack enable
+            - run: pnpm install --frozen-lockfile
+            - run: pnpm test
+            - run: pnpm run build
+            - run: pnpm exec semantic-release
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  NPM_TOKEN: ${{ secrets.PUBLISH_NPM_TOKEN }}
