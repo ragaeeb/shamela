@@ -4,12 +4,12 @@ import path from 'path';
 import { describe, expect, it } from 'vitest';
 
 import { copyForeignMasterTableData, createMasterTables } from '../src/db/master';
-import { downloadMasterVersion } from '../src/utils/api';
+import { downloadMasterDatabase, getBookMetadata } from '../src/utils/api';
 import { createTempDir } from '../src/utils/io';
 
 describe('e2e', () => {
-    describe('downloadMasterVersion', () => {
-        it('should call the Wit.ai API with the correct parameters and return the text', async () => {
+    describe('downloadMasterDatabase', () => {
+        it('should get the latest master metadata and then download it and populate our master database', async () => {
             const outputDir = await createTempDir();
             const dbPath = path.join(outputDir, `master.db`);
 
@@ -18,7 +18,7 @@ describe('e2e', () => {
             });
 
             try {
-                const result = await downloadMasterVersion({ outputDirectory: { path: outputDir } });
+                const result = await downloadMasterDatabase({ outputDirectory: { path: outputDir } });
                 expect(result).toHaveLength(3);
 
                 await createMasterTables(client);
@@ -33,6 +33,25 @@ describe('e2e', () => {
                 expect((authors as number) > 3000).toBe(true);
                 expect((books as number) > 8000).toBe(true);
                 expect((categories as number) > 30).toBe(true);
+            } finally {
+                client.close();
+                await fs.rm(outputDir, { recursive: true });
+            }
+        });
+    });
+
+    describe('downloadBook', () => {
+        it.only('should get the books major version url then download it', async () => {
+            const outputDir = await createTempDir();
+            const dbPath = path.join(outputDir, `master.db`);
+
+            const client = createClient({
+                url: `file:${dbPath}`,
+            });
+
+            try {
+                const result = await getBookMetadata(767);
+                console.log('resu', result);
             } finally {
                 client.close();
                 await fs.rm(outputDir, { recursive: true });

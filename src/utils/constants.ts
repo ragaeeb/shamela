@@ -1,0 +1,1 @@
+export const DEFAULT_MASTER_METADATA_VERSION = 0;
