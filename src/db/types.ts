@@ -30,4 +30,6 @@ export enum Tables {
     Authors = 'authors',
     Books = 'books',
     Categories = 'categories',
+    Page = 'page',
+    Title = 'title',
 }

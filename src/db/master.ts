@@ -1,33 +1,15 @@
 import { Client } from '@libsql/client';
+import { promises as fs } from 'fs';
 import path from 'path';
 
-import { attachDB, createTable } from './queryBuilder';
-import { Tables } from './types';
+import { attachDB } from './queryBuilder';
 
 export const UNKNOWN_DATE = '99999';
 
-export const createMasterTables = async (db: Client) => {
-    const statements: string[] = [
-        createTable(Tables.Authors, ['id INTEGER PRIMARY KEY', 'name TEXT', 'biography TEXT', 'death INTEGER']),
-        createTable(Tables.Books, [
-            'id INTEGER PRIMARY KEY',
-            'name TEXT',
-            'category INTEGER',
-            'type INTEGER',
-            'date INTEGER',
-            'author INTEGER',
-            'printed INTEGER',
-            'major INTEGER',
-            'minor INTEGER',
-            'bibliography TEXT',
-            'hint TEXT',
-            'pdf_links TEXT',
-            'metadata TEXT',
-        ]),
-        createTable(Tables.Categories, ['id INTEGER PRIMARY KEY', 'name TEXT']),
-    ];
+export const createTables = async (db: Client) => {
+    const sqlStatements = await fs.readFile(path.join('scripts', 'create_master.sql'), 'utf-8');
 
-    await db.executeMultiple(statements.join(';'));
+    await db.executeMultiple(sqlStatements);
 };
 
 export const copyForeignMasterTableData = async (db: Client, sourceTables: string[]) => {

@@ -1,5 +1,6 @@
 import logger from './logger.js';
 import { httpsGet } from './network'; // Assume the utility is in a file called httpsGet.ts
+import path from 'path';
 import process from 'process';
 import { URL, URLSearchParams } from 'url';
 
@@ -83,11 +84,16 @@ export const getBookMetadata = async (
 export const downloadBook = async (id: number, options: DownloadBookOptions) => {
     logger.info(`downloadBook ${id} ${JSON.stringify(options)}`);
 
+    const { dir: folder } = path.parse(options.outputFile.path);
+
     const bookResponse: GetBookMetadataResponsePayload = options?.bookMetadata || (await getBookMetadata(id));
-    const [bookDatabase, patchDatabase]: string[] = await Promise.all([
-        unzipFromUrl(bookResponse.majorReleaseUrl, options.outputFile.path),
-        ...(bookResponse.minorReleaseUrl ? [unzipFromUrl(bookResponse.minorReleaseUrl, options.outputFile.path)] : []),
+    const [[bookDatabase], [patchDatabase]]: string[][] = await Promise.all([
+        unzipFromUrl(bookResponse.majorReleaseUrl, folder),
+        ...(bookResponse.minorReleaseUrl ? [unzipFromUrl(bookResponse.minorReleaseUrl, folder)] : []),
     ]);
 
-    return sourceTables;
+    console.log('bookDatabase', bookDatabase);
+    console.log('patchDatabase', patchDatabase);
+
+    return true;
 };

@@ -4,7 +4,7 @@ import path from 'path';
 import { describe, expect, it } from 'vitest';
 
 import { copyForeignMasterTableData, createMasterTables } from '../src/db/master';
-import { downloadMasterDatabase, getBookMetadata } from '../src/utils/api';
+import { downloadBook, downloadMasterDatabase } from '../src/utils/api';
 import { createTempDir } from '../src/utils/io';
 
 describe('e2e', () => {
@@ -43,14 +43,14 @@ describe('e2e', () => {
     describe('downloadBook', () => {
         it.only('should get the books major version url then download it', async () => {
             const outputDir = await createTempDir();
-            const dbPath = path.join(outputDir, `master.db`);
+            const dbPath = path.join(outputDir, `book.db`);
 
             const client = createClient({
                 url: `file:${dbPath}`,
             });
 
             try {
-                const result = await getBookMetadata(767);
+                const result = await downloadBook(26592, { outputFile: { path: dbPath } });
                 console.log('resu', result);
             } finally {
                 client.close();

@@ -4,7 +4,7 @@ import path from 'path';
 import { describe, expect, it, beforeAll, beforeEach, afterAll, afterEach } from 'vitest';
 
 import { createTempDir } from '../utils/io';
-import { copyForeignMasterTableData, createMasterTables } from './master';
+import { copyForeignMasterTableData, createTables } from './master';
 import { Tables } from './types';
 
 describe('master', () => {
@@ -30,24 +30,18 @@ describe('master', () => {
         await fs.rm(dbPath, { recursive: true });
     });
 
-    describe('createMasterTables', () => {
-        it.only('should create the tables', async () => {
-            await createMasterTables(client);
-
-            const results = await client.execute(`SELECT * FROM sqlite_master`);
-
-            expect(results.rows).toHaveLength(Object.keys(Tables).length);
-        });
-    });
-
     describe('copyForeignMasterTableData', () => {
         it('should create and populate the tables', async () => {
-            await createMasterTables(client);
+            await createTables(client);
             await copyForeignMasterTableData(client, [
                 'testing/dbs/author.sqlite',
                 'testing/dbs/book.sqlite',
                 'testing/dbs/category.sqlite',
             ]);
+
+            const results = await client.execute(`SELECT * FROM sqlite_master`);
+
+            expect(results.rows).toHaveLength(Object.keys(Tables).length);
         });
     });
 });
