@@ -1,24 +1,24 @@
 export type Author = {
-    id: number;
-    name: string;
     biography: string;
     death: number;
+    id: number;
+    name: string;
 };
 
 export type Book = {
-    id: number;
-    name: string;
-    category: number;
-    type: number;
-    date: number;
     author: number;
-    printed: number;
-    major: number;
-    minor: number;
     bibliography: string;
+    category: number;
+    date: number;
     hint: string;
-    pdf_links: string;
+    id: number;
+    major: number;
     metadata: string;
+    minor: number;
+    name: string;
+    pdf_links: string;
+    printed: number;
+    type: number;
 };
 
 export type Category = {

@@ -71,8 +71,8 @@ export const getBookMetadata = async (
     try {
         const response: Record<string, any> = await httpsGet(url);
         return {
-            majorReleaseUrl: response.major_release_url,
             majorRelease: response.major_release,
+            majorReleaseUrl: response.major_release_url,
             ...(response.minor_release_url && { minorReleaseUrl: response.minor_release_url }),
             ...(response.minor_release_url && { minorRelease: response.minor_release }),
         };
@@ -91,9 +91,6 @@ export const downloadBook = async (id: number, options: DownloadBookOptions) => 
         unzipFromUrl(bookResponse.majorReleaseUrl, folder),
         ...(bookResponse.minorReleaseUrl ? [unzipFromUrl(bookResponse.minorReleaseUrl, folder)] : []),
     ]);
-
-    console.log('bookDatabase', bookDatabase);
-    console.log('patchDatabase', patchDatabase);
 
     return true;
 };

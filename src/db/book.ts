@@ -3,7 +3,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 
 import logger from '../utils/logger';
-import { attachDB, buildPagePatchQuery, buildTitlePatchQuery } from './queryBuilder';
+import { attachDB, buildPagePatchQuery, buildTitlePatchQuery, detachDB } from './queryBuilder';
 import { Tables } from './types';
 
 const PATCH_DB_ALIAS = 'patch';
@@ -28,7 +28,7 @@ const getPagesToCopy = (tables: InternalTable[]): string[] => {
         statements.push(buildPagePatchQuery(PATCH_DB_ALIAS, Tables.Page));
     } else {
         statements.push(
-            `INSERT INTO main.${Tables.Page} SELECT id,content,part,page,number FROM ${ASL_DB_ALIAS}.${Tables.Page}`,
+            `INSERT INTO main.${Tables.Page} SELECT id,content,part,page,number FROM ${ASL_DB_ALIAS}.${Tables.Page} WHERE is_deleted='0'`,
         );
     }
 
@@ -45,7 +45,7 @@ const getTitlesToCopy = (tables: InternalTable[]): string[] => {
         statements.push(buildTitlePatchQuery(PATCH_DB_ALIAS, Tables.Title));
     } else {
         statements.push(
-            `INSERT INTO main.${Tables.Title} SELECT id,content,page,parent FROM ${ASL_DB_ALIAS}.${Tables.Title}`,
+            `INSERT INTO main.${Tables.Title} SELECT id,content,page,parent FROM ${ASL_DB_ALIAS}.${Tables.Title} WHERE is_deleted='0'`,
         );
     }
 
@@ -68,10 +68,10 @@ export const applyPatches = async (db: Client, aslDB: string, patchDB?: string) 
     statements.push(...getPagesToCopy(tables as InternalTable[]));
     statements.push(...getTitlesToCopy(tables as InternalTable[]));
 
-    statements.push(`DETACH DATABASE ${ASL_DB_ALIAS}`);
+    statements.push(detachDB(ASL_DB_ALIAS));
 
     if (patchDB) {
-        statements.push(`DETACH DATABASE ${PATCH_DB_ALIAS}`);
+        statements.push(detachDB(PATCH_DB_ALIAS));
     }
 
     return db.executeMultiple(statements.join(';'));
