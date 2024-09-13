@@ -4,10 +4,10 @@ export type GetMasterMetadataResponsePayload = {
 };
 
 export type GetBookMetadataResponsePayload = {
-    majorReleaseUrl: string;
-    minorReleaseUrl?: string;
     majorRelease: number;
+    majorReleaseUrl: string;
     minorRelease?: number;
+    minorReleaseUrl?: string;
 };
 
 export interface OutputOptions {
@@ -15,13 +15,13 @@ export interface OutputOptions {
 }
 
 export type DownloadMasterOptions = {
-    outputDirectory: OutputOptions;
     masterMetadata?: GetMasterMetadataResponsePayload;
+    outputFile: OutputOptions;
 };
 
 export type DownloadBookOptions = {
-    outputFile: OutputOptions;
     bookMetadata?: GetBookMetadataResponsePayload;
+    outputFile: OutputOptions;
 };
 
 export type GetBookMetadataOptions = {

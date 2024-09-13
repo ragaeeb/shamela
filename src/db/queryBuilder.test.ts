@@ -217,7 +217,7 @@ describe('queryBuilder', () => {
             const fieldToValue = { email: 'alice@example.com', id: 1, name: 'Alice' };
             const isDeleted = false;
             const expectedSQL =
-                "INSERT INTO users (id,name,email,is_deleted) VALUES (1,'Alice','alice@example.com','0')";
+                "INSERT INTO users (email,id,is_deleted,name) VALUES ('alice@example.com',1,'0','Alice')";
             const sql = insertUnsafely(table, fieldToValue, isDeleted);
             expect(sql).toEqual(expectedSQL);
         });
@@ -226,7 +226,7 @@ describe('queryBuilder', () => {
             const table = 'users';
             const fieldToValue = { email: 'bob@example.com', id: 2, name: 'Bob' };
             const isDeleted = true;
-            const expectedSQL = "INSERT INTO users (id,name,email,is_deleted) VALUES (2,'Bob','bob@example.com','1')";
+            const expectedSQL = "INSERT INTO users (email,id,is_deleted,name) VALUES ('bob@example.com',2,'1','Bob')";
             const sql = insertUnsafely(table, fieldToValue, isDeleted);
             expect(sql).toEqual(expectedSQL);
         });
@@ -234,7 +234,7 @@ describe('queryBuilder', () => {
         it('should handle numeric and string values correctly', () => {
             const table = 'products';
             const fieldToValue = { id: 100, name: 'Widget', price: 19.99 };
-            const expectedSQL = "INSERT INTO products (id,name,price,is_deleted) VALUES (100,'Widget',19.99,'0')";
+            const expectedSQL = "INSERT INTO products (id,is_deleted,name,price) VALUES (100,'0','Widget',19.99)";
             const sql = insertUnsafely(table, fieldToValue);
             expect(sql).toEqual(expectedSQL);
         });
@@ -250,7 +250,7 @@ describe('queryBuilder', () => {
         it('should handle undefined isDeleted parameter (default to false)', () => {
             const table = 'users';
             const fieldToValue = { id: 3, name: 'Charlie' };
-            const expectedSQL = "INSERT INTO users (id,name,is_deleted) VALUES (3,'Charlie','0')";
+            const expectedSQL = "INSERT INTO users (id,is_deleted,name) VALUES (3,'0','Charlie')";
             const sql = insertUnsafely(table, fieldToValue);
             expect(sql).toEqual(expectedSQL);
         });
@@ -265,7 +265,7 @@ describe('queryBuilder', () => {
                 score: 99.5,
             };
             const expectedSQL =
-                "INSERT INTO mixed_types (id,name,isActive,created_at,score,is_deleted) VALUES (1,'Test',true,NULL,99.5,'0')";
+                "INSERT INTO mixed_types (created_at,id,isActive,is_deleted,name,score) VALUES (NULL,1,true,'0','Test',99.5)";
             const sql = insertUnsafely(table, fieldToValue);
             expect(sql).toEqual(expectedSQL);
         });

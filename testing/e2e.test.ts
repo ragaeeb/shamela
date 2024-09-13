@@ -1,10 +1,9 @@
-import { createClient } from '@libsql/client';
+import { Client, createClient } from '@libsql/client';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
 
-import { copyForeignMasterTableData, createMasterTables } from '../src/db/master';
-import { downloadBook, downloadMasterDatabase } from '../src/utils/api';
+import { downloadBook, downloadMasterDatabase } from '../src/api';
 import { createTempDir } from '../src/utils/io';
 
 describe('e2e', () => {
@@ -13,17 +12,14 @@ describe('e2e', () => {
             const outputDir = await createTempDir();
             const dbPath = path.join(outputDir, `master.db`);
 
-            const client = createClient({
+            const result = await downloadMasterDatabase({ outputFile: { path: dbPath } });
+            expect(result).toEqual(dbPath);
+
+            const client: Client = createClient({
                 url: `file:${dbPath}`,
             });
 
             try {
-                const result = await downloadMasterDatabase({ outputDirectory: { path: outputDir } });
-                expect(result).toHaveLength(3);
-
-                await createMasterTables(client);
-                await copyForeignMasterTableData(client, result);
-
                 const {
                     rows: [{ authors, books, categories }],
                 } = await client.execute(
@@ -41,17 +37,26 @@ describe('e2e', () => {
     });
 
     describe('downloadBook', () => {
-        it.only('should get the books major version url then download it', async () => {
+        it('should get the books major version url then download it', async () => {
             const outputDir = await createTempDir();
             const dbPath = path.join(outputDir, `book.db`);
 
-            const client = createClient({
+            const result = await downloadBook(26592, { outputFile: { path: dbPath } });
+            expect(result).toEqual(dbPath);
+
+            const client: Client = createClient({
                 url: `file:${dbPath}`,
             });
 
             try {
-                const result = await downloadBook(26592, { outputFile: { path: dbPath } });
-                console.log('resu', result);
+                const {
+                    rows: [{ pages, titles }],
+                } = await client.execute(
+                    'SELECT (SELECT COUNT(*) FROM page) AS pages, (SELECT COUNT(*) FROM title) AS titles',
+                );
+
+                expect((pages as number) > 90).toBe(true);
+                expect((titles as number) > 0).toBe(true);
             } finally {
                 client.close();
                 await fs.rm(outputDir, { recursive: true });

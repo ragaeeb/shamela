@@ -1,19 +1,22 @@
-import logger from './logger.js';
-import { httpsGet } from './network'; // Assume the utility is in a file called httpsGet.ts
+import logger from './utils/logger.js';
+import { httpsGet } from './utils/network.js'; // Assume the utility is in a file called httpsGet.ts
+import { Client, createClient } from '@libsql/client';
 import path from 'path';
 import process from 'process';
 import { URL, URLSearchParams } from 'url';
 
+import { applyPatches, createTables as createBookTables } from './db/book.js';
+import { copyForeignMasterTableData, createTables as createMasterTables } from './db/master.js';
 import {
     DownloadBookOptions,
     DownloadMasterOptions,
     GetBookMetadataOptions,
     GetBookMetadataResponsePayload,
     GetMasterMetadataResponsePayload,
-} from '../types.js';
-import { DEFAULT_MASTER_METADATA_VERSION } from './constants.js';
-import { unzipFromUrl } from './io.js';
-import { validateEnvVariables, validateMasterSourceTables } from './validation.js';
+} from './types.js';
+import { DEFAULT_MASTER_METADATA_VERSION } from './utils/constants.js';
+import { unzipFromUrl } from './utils/io.js';
+import { validateEnvVariables, validateMasterSourceTables } from './utils/validation.js';
 
 export const getMasterMetadata = async (version: number = 0): Promise<GetMasterMetadataResponsePayload> => {
     validateEnvVariables();
@@ -36,19 +39,39 @@ export const getMasterMetadata = async (version: number = 0): Promise<GetMasterM
     }
 };
 
-export const downloadMasterDatabase = async (options: DownloadMasterOptions): Promise<string[]> => {
+export const downloadMasterDatabase = async (options: DownloadMasterOptions): Promise<string> => {
     logger.info(`downloadMasterDatabase ${JSON.stringify(options)}`);
+
+    const { dir: folder } = path.parse(options.outputFile.path);
 
     const masterResponse: GetMasterMetadataResponsePayload =
         options.masterMetadata || (await getMasterMetadata(DEFAULT_MASTER_METADATA_VERSION));
-    const sourceTables: string[] = await unzipFromUrl(masterResponse.url, options.outputDirectory.path);
+
+    logger.info(`Downloading master database from: ${JSON.stringify(masterResponse)}`);
+    const sourceTables: string[] = await unzipFromUrl(masterResponse.url, folder);
+
+    logger.info(`sourceTables downloaded: ${sourceTables.toString()}`);
 
     if (!validateMasterSourceTables(sourceTables)) {
         logger.error(`Some source tables were not found: ${sourceTables.toString()}`);
         throw new Error('Expected tables not found!');
     }
 
-    return sourceTables;
+    const client: Client = createClient({
+        url: `file:${options.outputFile.path}`,
+    });
+
+    try {
+        logger.info(`Creating tables`);
+        await createMasterTables(client);
+
+        logger.info(`Copying data to master table`);
+        await copyForeignMasterTableData(client, sourceTables);
+    } finally {
+        client.close();
+    }
+
+    return options.outputFile.path;
 };
 
 export const getBookMetadata = async (
@@ -81,7 +104,7 @@ export const getBookMetadata = async (
     }
 };
 
-export const downloadBook = async (id: number, options: DownloadBookOptions) => {
+export const downloadBook = async (id: number, options: DownloadBookOptions): Promise<string> => {
     logger.info(`downloadBook ${id} ${JSON.stringify(options)}`);
 
     const { dir: folder } = path.parse(options.outputFile.path);
@@ -92,5 +115,19 @@ export const downloadBook = async (id: number, options: DownloadBookOptions) => 
         ...(bookResponse.minorReleaseUrl ? [unzipFromUrl(bookResponse.minorReleaseUrl, folder)] : []),
     ]);
 
-    return true;
+    const client: Client = createClient({
+        url: `file:${options.outputFile.path}`,
+    });
+
+    try {
+        logger.info(`Creating tables`);
+        await createBookTables(client);
+
+        logger.info(`Applying patches from ${patchDatabase} to ${bookDatabase}`);
+        await applyPatches(client, bookDatabase, patchDatabase);
+    } finally {
+        client.close();
+    }
+
+    return options.outputFile.path;
 };

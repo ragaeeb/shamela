@@ -59,9 +59,13 @@ export const buildTitlePatchQuery = (
 `;
 
 export const insertUnsafely = (table: string, fieldToValue: Record<string, any>, isDeleted = false): string => {
-    const combinedRecords = { ...fieldToValue, is_deleted: isDeleted ? '1' : '0' };
+    const combinedRecords: Record<string, any> = { ...fieldToValue, is_deleted: isDeleted ? '1' : '0' };
 
-    return `INSERT INTO ${table} (${Object.keys(combinedRecords).toString()}) VALUES (${Object.values(combinedRecords)
+    const sortedKeys = Object.keys(combinedRecords).sort();
+
+    const sortedValues = sortedKeys.map((key) => combinedRecords[key]);
+
+    return `INSERT INTO ${table} (${sortedKeys.toString()}) VALUES (${sortedValues
         .map((val) => {
             if (val === null) {
                 return 'NULL';
