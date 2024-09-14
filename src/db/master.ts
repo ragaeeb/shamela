@@ -8,13 +8,11 @@ import { attachDB, detachDB } from './queryBuilder';
 import { BookRow, Tables } from './types';
 
 export const createTables = async (db: Client) => {
-    return db.executeMultiple(
-        [
-            `CREATE TABLE authors (id INTEGER PRIMARY KEY, name TEXT, biography TEXT, death INTEGER)`,
-            `CREATE TABLE books (id INTEGER PRIMARY KEY, name TEXT, category INTEGER, type INTEGER, date INTEGER, author TEXT, printed INTEGER, major INTEGER, minor INTEGER, bibliography TEXT, hint TEXT, pdf_links TEXT, metadata TEXT)`,
-            `CREATE TABLE categories (id INTEGER PRIMARY KEY, name TEXT)`,
-        ].join(';'),
-    );
+    return db.batch([
+        `CREATE TABLE authors (id INTEGER PRIMARY KEY, name TEXT, biography TEXT, death INTEGER)`,
+        `CREATE TABLE books (id INTEGER PRIMARY KEY, name TEXT, category INTEGER, type INTEGER, date INTEGER, author TEXT, printed INTEGER, major INTEGER, minor INTEGER, bibliography TEXT, hint TEXT, pdf_links TEXT, metadata TEXT)`,
+        `CREATE TABLE categories (id INTEGER PRIMARY KEY, name TEXT)`,
+    ]);
 };
 
 export const getAllAuthors = async (db: Client): Promise<Author[]> => {
@@ -97,16 +95,15 @@ export const copyForeignMasterTableData = async (db: Client, sourceTables: strin
     }, {});
 
     const attachStatements: string[] = Object.entries(aliasToPath).map(([alias, dbPath]) => attachDB(dbPath, alias));
+    await db.batch(attachStatements);
 
     const insertStatements: string[] = [
         `INSERT INTO ${Tables.Authors} SELECT id,name,biography,(CASE WHEN death_number = ${UNKNOWN_VALUE_PLACEHOLDER} THEN NULL ELSE death_number END) AS death_number FROM author WHERE is_deleted='0'`,
         `INSERT INTO ${Tables.Books} SELECT id,name,category,type,(CASE WHEN date = ${UNKNOWN_VALUE_PLACEHOLDER} THEN NULL ELSE date END) AS date,author,printed,major_release,minor_release,bibliography,hint,pdf_links,metadata FROM book WHERE is_deleted='0'`,
         `INSERT INTO ${Tables.Categories} SELECT id,name FROM category WHERE is_deleted='0'`,
     ];
+    await db.batch(insertStatements);
 
     const detachStatements: string[] = Object.keys(aliasToPath).map(detachDB);
-
-    const combinedStatements = attachStatements.concat(insertStatements).concat(detachStatements);
-
-    await db.executeMultiple(combinedStatements.join(';'));
+    await db.batch(detachStatements);
 };

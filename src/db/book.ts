@@ -14,12 +14,10 @@ type InternalTable = {
 };
 
 export const createTables = async (db: Client) => {
-    return db.executeMultiple(
-        [
-            `CREATE TABLE page (id INTEGER PRIMARY KEY, content TEXT, part INTEGER, page INTEGER, number INTEGER)`,
-            `CREATE TABLE title (id INTEGER PRIMARY KEY, content TEXT, page INTEGER, parent INTEGER)`,
-        ].join(';'),
-    );
+    return db.batch([
+        `CREATE TABLE page (id INTEGER PRIMARY KEY, content TEXT, part INTEGER, page INTEGER, number INTEGER)`,
+        `CREATE TABLE title (id INTEGER PRIMARY KEY, content TEXT, page INTEGER, parent INTEGER)`,
+    ]);
 };
 
 export const getAllPages = async (db: Client): Promise<Page[]> => {
@@ -112,11 +110,14 @@ export const applyPatches = async (db: Client, aslDB: string, patchDB?: string) 
     statements.push(...getPagesToCopy(tables as InternalTable[]));
     statements.push(...getTitlesToCopy(tables as InternalTable[]));
 
-    statements.push(detachDB(ASL_DB_ALIAS));
+    await db.batch(statements);
+
+    const detachStatements = [];
+    detachStatements.push(detachDB(ASL_DB_ALIAS));
 
     if (patchDB) {
-        statements.push(detachDB(PATCH_DB_ALIAS));
+        detachStatements.push(detachDB(PATCH_DB_ALIAS));
     }
 
-    return db.executeMultiple(statements.join(';'));
+    return db.batch(detachStatements);
 };

@@ -1,3 +1,3 @@
-import { downloadBook, downloadMasterDatabase, getBookMetadata, getMasterMetadata } from './api';
+import { downloadBook, downloadMasterDatabase, getBook, getBookMetadata, getMasterMetadata } from './api';
 
-export { downloadBook, downloadMasterDatabase, getBookMetadata, getMasterMetadata };
+export { downloadBook, downloadMasterDatabase, getBook, getBookMetadata, getMasterMetadata };

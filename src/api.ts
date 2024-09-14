@@ -1,5 +1,5 @@
 import { Client, createClient } from '@libsql/client';
-import { promises as fs } from 'fs'; // Assume the utility is in a file called httpsGet.ts
+import { promises as fs } from 'fs';
 import path from 'path';
 import process from 'process';
 import { URL, URLSearchParams } from 'url';
@@ -48,13 +48,13 @@ export const getMasterMetadata = async (version: number = 0): Promise<GetMasterM
 export const downloadMasterDatabase = async (options: DownloadMasterOptions): Promise<string> => {
     logger.info(`downloadMasterDatabase ${JSON.stringify(options)}`);
 
-    const { dir: folder } = path.parse(options.outputFile.path);
+    const outputDir = await createTempDir('shamela_downloadMaster');
 
     const masterResponse: GetMasterMetadataResponsePayload =
         options.masterMetadata || (await getMasterMetadata(DEFAULT_MASTER_METADATA_VERSION));
 
     logger.info(`Downloading master database from: ${JSON.stringify(masterResponse)}`);
-    const sourceTables: string[] = await unzipFromUrl(masterResponse.url, folder);
+    const sourceTables: string[] = await unzipFromUrl(masterResponse.url, outputDir);
 
     logger.info(`sourceTables downloaded: ${sourceTables.toString()}`);
 
@@ -63,8 +63,10 @@ export const downloadMasterDatabase = async (options: DownloadMasterOptions): Pr
         throw new Error('Expected tables not found!');
     }
 
+    const dbPath = path.join(outputDir, 'master.db');
+
     const client: Client = createClient({
-        url: `file:${options.outputFile.path}`,
+        url: `file:${dbPath}`,
     });
 
     try {
@@ -73,6 +75,21 @@ export const downloadMasterDatabase = async (options: DownloadMasterOptions): Pr
 
         logger.info(`Copying data to master table`);
         await copyForeignMasterTableData(client, sourceTables);
+
+        const { ext: extension } = path.parse(options.outputFile.path);
+
+        if (extension === '.json') {
+            const result = await getMasterData(client);
+            await fs.writeFile(options.outputFile.path, JSON.stringify(result, undefined, 2), 'utf8');
+        }
+
+        client.close();
+
+        if (extension === '.db' || extension === '.sqlite') {
+            await fs.rename(dbPath, options.outputFile.path);
+        }
+
+        await fs.rm(outputDir, { recursive: true });
     } finally {
         client.close();
     }
