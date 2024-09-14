@@ -31,7 +31,6 @@ export interface OutputBookOptions extends OutputOptions {
 export type DownloadBookOptions = {
     bookMetadata?: GetBookMetadataResponsePayload;
     outputFile: OutputBookOptions;
-    preventCleanup?: boolean;
 };
 
 export type Author = {

@@ -4,9 +4,14 @@ import path from 'path';
 import process from 'process';
 import { URL, URLSearchParams } from 'url';
 
-import { applyPatches, createTables as createBookTables } from './db/book.js';
-import { copyForeignMasterTableData, createTables as createMasterTables } from './db/master.js';
+import { applyPatches, createTables as createBookTables, getData as getBookData } from './db/book.js';
 import {
+    copyForeignMasterTableData,
+    createTables as createMasterTables,
+    getData as getMasterData,
+} from './db/master.js';
+import {
+    BookData,
     DownloadBookOptions,
     DownloadMasterOptions,
     GetBookMetadataOptions,
@@ -14,7 +19,7 @@ import {
     GetMasterMetadataResponsePayload,
 } from './types.js';
 import { DEFAULT_MASTER_METADATA_VERSION } from './utils/constants.js';
-import { unzipFromUrl } from './utils/io.js';
+import { createTempDir, unzipFromUrl } from './utils/io.js';
 import logger from './utils/logger.js';
 import { httpsGet } from './utils/network.js';
 import { validateEnvVariables, validateMasterSourceTables } from './utils/validation.js';
@@ -108,16 +113,17 @@ export const getBookMetadata = async (
 export const downloadBook = async (id: number, options: DownloadBookOptions): Promise<string> => {
     logger.info(`downloadBook ${id} ${JSON.stringify(options)}`);
 
-    const { dir: folder, ext: extension } = path.parse(options.outputFile.path);
+    const outputDir = await createTempDir('shamela_downloadBook');
 
     const bookResponse: GetBookMetadataResponsePayload = options?.bookMetadata || (await getBookMetadata(id));
     const [[bookDatabase], [patchDatabase]]: string[][] = await Promise.all([
-        unzipFromUrl(bookResponse.majorReleaseUrl, folder),
-        ...(bookResponse.minorReleaseUrl ? [unzipFromUrl(bookResponse.minorReleaseUrl, folder)] : []),
+        unzipFromUrl(bookResponse.majorReleaseUrl, outputDir),
+        ...(bookResponse.minorReleaseUrl ? [unzipFromUrl(bookResponse.minorReleaseUrl, outputDir)] : []),
     ]);
+    const dbPath = path.join(outputDir, 'book.db');
 
     const client: Client = createClient({
-        url: `file:${options.outputFile.path}`,
+        url: `file:${dbPath}`,
     });
 
     try {
@@ -127,12 +133,33 @@ export const downloadBook = async (id: number, options: DownloadBookOptions): Pr
         logger.info(`Applying patches from ${patchDatabase} to ${bookDatabase}`);
         await applyPatches(client, bookDatabase, patchDatabase);
 
-        if (!options.preventCleanup) {
-            await Promise.all([fs.rm(bookDatabase, { recursive: true }), fs.rm(patchDatabase, { recursive: true })]);
+        const { ext: extension } = path.parse(options.outputFile.path);
+
+        if (extension === '.json') {
+            const result = await getBookData(client);
+            await fs.writeFile(options.outputFile.path, JSON.stringify(result, undefined, 2), 'utf8');
         }
+
+        client.close();
+
+        if (extension === '.db' || extension === '.sqlite') {
+            await fs.rename(dbPath, options.outputFile.path);
+        }
+
+        await fs.rm(outputDir, { recursive: true });
     } finally {
         client.close();
     }
 
     return options.outputFile.path;
+};
+
+export const getBook = async (id: number): Promise<BookData> => {
+    const outputDir = await createTempDir('shamela_getBookData');
+    const outputPath = await downloadBook(id, { outputFile: { path: path.join(outputDir, `${id}.json`) } });
+
+    const data = JSON.parse(await fs.readFile(outputPath, 'utf8')) as BookData;
+    await fs.rm(outputDir, { recursive: true });
+
+    return data;
 };

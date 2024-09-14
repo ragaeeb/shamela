@@ -3,7 +3,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
 
-import { downloadBook, downloadMasterDatabase } from '../src/api';
+import { downloadBook, downloadMasterDatabase, getBook } from '../src/api';
 import { createTempDir } from '../src/utils/io';
 
 describe('e2e', () => {
@@ -38,7 +38,7 @@ describe('e2e', () => {
 
     describe('downloadBook', () => {
         it('should get the books major version url then download it', async () => {
-            const outputDir = await createTempDir();
+            const outputDir = await createTempDir('shamela_e2e_downloadBook');
             const dbPath = path.join(outputDir, `book.db`);
 
             const result = await downloadBook(26592, { outputFile: { path: dbPath } });
@@ -61,6 +61,30 @@ describe('e2e', () => {
                 client.close();
                 await fs.rm(outputDir, { recursive: true });
             }
+        });
+
+        it('should get the books major version url then download it as json', async () => {
+            const outputDir = await createTempDir('shamela_e2e_downloadBook');
+            const dbPath = path.join(outputDir, `book.json`);
+
+            const result = await downloadBook(26592, { outputFile: { path: dbPath } });
+            expect(result).toEqual(dbPath);
+
+            try {
+                const { pages, titles } = JSON.parse(await fs.readFile(result, 'utf8'));
+
+                expect(pages.length > 90).toBe(true);
+                expect(titles.length > 0).toBe(true);
+            } finally {
+                await fs.rm(outputDir, { recursive: true });
+            }
+        });
+
+        it('should get the books major version url then download it as a typed object', async () => {
+            const { pages, titles = [] } = await getBook(26592);
+
+            expect(pages.length > 90).toBe(true);
+            expect(titles.length > 0).toBe(true);
         });
     });
 });

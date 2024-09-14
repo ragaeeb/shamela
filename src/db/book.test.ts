@@ -39,7 +39,7 @@ describe('book', () => {
     };
 
     beforeAll(async () => {
-        dbFolder = await createTempDir();
+        dbFolder = await createTempDir('shamela_book_test');
         dbPath = path.join(dbFolder, 'book.db');
         aslPath = path.join(dbFolder, 'asl.db');
         patchPath = path.join(dbFolder, 'patch.db');

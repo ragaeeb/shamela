@@ -18,7 +18,7 @@ describe('master', () => {
     let dbFolder: string;
 
     beforeAll(async () => {
-        dbFolder = await createTempDir();
+        dbFolder = await createTempDir('shamela_master_test');
         dbPath = path.join(dbFolder, 'master.db');
         bookPath = path.join(dbFolder, 'book.sqlite');
         categoryPath = path.join(dbFolder, 'category.sqlite');
