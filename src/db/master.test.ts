@@ -3,11 +3,10 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { UNKNOWN_DATE_PLACEHOLDER } from '../utils/constants';
+import { UNKNOWN_VALUE_PLACEHOLDER } from '../utils/constants';
 import { createTempDir } from '../utils/io';
-import { copyForeignMasterTableData, createTables } from './master';
+import { copyForeignMasterTableData, createTables, getData } from './master';
 import { attachDB, insertUnsafely } from './queryBuilder';
-import { Tables } from './types';
 
 describe('master', () => {
     let client: Client;
@@ -66,16 +65,6 @@ describe('master', () => {
     });
 
     describe('copyForeignMasterTableData', () => {
-        const selectAllFromTables = async () => {
-            const [{ rows: authors }, { rows: books }, { rows: categories }] = await Promise.all([
-                client.execute(`SELECT * FROM ${Tables.Authors}`),
-                client.execute(`SELECT * FROM ${Tables.Books}`),
-                client.execute(`SELECT * FROM ${Tables.Categories}`),
-            ]);
-
-            return { authors, books, categories };
-        };
-
         it('should build the database from the original source tables', async () => {
             await otherClient.executeMultiple(
                 [
@@ -97,12 +86,14 @@ describe('master', () => {
                         metadata: '{"date":"08121431"}',
                         minor_release: '0',
                         name: 'B',
-                        pdf_links: 'pdf',
+                        pdf_links: `{"alias": 22, "cover": 1, "cover_alias": 20, "root": "https://archive.org/download/tazkerat_samee/", "files": ["16966p.pdf", "16966.pdf|0"], "size": 7328419}`,
                         printed: '1',
                         type: '1',
                     }),
                     insertUnsafely('main.book', {
+                        author: '50',
                         id: 2,
+                        metadata: '{"date":"08121431"}',
                         name: 'B',
                     }),
                     insertUnsafely('categories.category', { '`order`': '1', id: 1, name: 'Fiqh' }),
@@ -111,7 +102,7 @@ describe('master', () => {
 
             await copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
 
-            const { authors, books, categories } = await selectAllFromTables();
+            const { authors, books, categories } = await getData(client);
 
             expect(authors).toEqual([{ biography: 'Bio', death: 99, id: 1, name: 'Ahmad' }]);
 
@@ -124,25 +115,27 @@ describe('master', () => {
                     hint: 'h',
                     id: 1,
                     major: 5,
-                    metadata: '{"date":"08121431"}',
-                    minor: 0,
+                    metadata: { date: '08121431' },
                     name: 'B',
-                    pdf_links: 'pdf',
+                    pdfLinks: {
+                        alias: 22,
+                        cover: 1,
+                        cover_alias: 20,
+                        files: [{ file: '16966p.pdf' }, { file: '16966.pdf', id: '0' }],
+                        root: 'https://archive.org/download/tazkerat_samee/',
+                        size: 7328419,
+                    },
                     printed: 1,
                     type: 1,
                 },
                 {
-                    author: null,
+                    author: 50,
                     bibliography: null,
                     category: null,
-                    date: null,
-                    hint: null,
                     id: 2,
                     major: null,
-                    metadata: null,
-                    minor: null,
+                    metadata: { date: '08121431' },
                     name: 'B',
-                    pdf_links: null,
                     printed: null,
                     type: null,
                 },
@@ -174,7 +167,7 @@ describe('master', () => {
 
             await copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
 
-            const { authors, books, categories } = await selectAllFromTables();
+            const { authors, books, categories } = await getData(client);
 
             expect(authors).toHaveLength(0);
             expect(books).toHaveLength(0);
@@ -185,11 +178,12 @@ describe('master', () => {
             await otherClient.executeMultiple(
                 [
                     insertUnsafely('authors.author', {
-                        death_number: UNKNOWN_DATE_PLACEHOLDER,
+                        death_number: UNKNOWN_VALUE_PLACEHOLDER,
                         id: 1,
                     }),
                     insertUnsafely('main.book', {
-                        date: UNKNOWN_DATE_PLACEHOLDER,
+                        author: '1',
+                        date: UNKNOWN_VALUE_PLACEHOLDER,
                         id: 1,
                     }),
                 ].join(';'),
@@ -197,10 +191,10 @@ describe('master', () => {
 
             await copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
 
-            const { authors, books } = await selectAllFromTables();
+            const { authors, books } = await getData(client);
 
-            expect(authors).toEqual([expect.objectContaining({ death: null })]);
-            expect(books).toEqual([expect.objectContaining({ date: null })]);
+            expect(authors[0].death).toBeUndefined();
+            expect(books[0].date).toBeUndefined();
         });
     });
 });

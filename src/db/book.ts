@@ -1,6 +1,4 @@
 import { Client } from '@libsql/client';
-import { promises as fs } from 'fs';
-import path from 'path';
 
 import logger from '../utils/logger';
 import { attachDB, buildPagePatchQuery, buildTitlePatchQuery, detachDB } from './queryBuilder';
@@ -14,8 +12,12 @@ type InternalTable = {
 };
 
 export const createTables = async (db: Client) => {
-    const sqlStatements = await fs.readFile(path.join('scripts', 'create_book.sql'), 'utf-8');
-    await db.executeMultiple(sqlStatements);
+    return db.executeMultiple(
+        [
+            `CREATE TABLE page (id INTEGER PRIMARY KEY, content TEXT, part INTEGER, page INTEGER, number INTEGER)`,
+            `CREATE TABLE title (id INTEGER PRIMARY KEY, content TEXT, page INTEGER, parent INTEGER)`,
+        ].join(';'),
+    );
 };
 
 const getPagesToCopy = (tables: InternalTable[]): string[] => {

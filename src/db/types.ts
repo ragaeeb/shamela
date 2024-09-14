@@ -1,27 +1,27 @@
-export type Author = {
+export type AuthorRow = {
     biography: string;
     death: number;
     id: number;
     name: string;
 };
 
-export type Book = {
-    author: number;
+export type BookRow = {
+    author: string;
     bibliography: string;
     category: number;
-    date: number;
-    hint: string;
+    date?: null | number;
+    hint: null | string;
     id: number;
     major: number;
     metadata: string;
-    minor: number;
+    minor?: number;
     name: string;
-    pdf_links: string;
+    pdf_links: null | string;
     printed: number;
     type: number;
 };
 
-export type Category = {
+export type CategoryRow = {
     id: number;
     name: string;
 };

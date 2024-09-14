@@ -1,6 +1,5 @@
-import logger from './utils/logger.js';
-import { httpsGet } from './utils/network.js'; // Assume the utility is in a file called httpsGet.ts
 import { Client, createClient } from '@libsql/client';
+import { promises as fs } from 'fs'; // Assume the utility is in a file called httpsGet.ts
 import path from 'path';
 import process from 'process';
 import { URL, URLSearchParams } from 'url';
@@ -16,6 +15,8 @@ import {
 } from './types.js';
 import { DEFAULT_MASTER_METADATA_VERSION } from './utils/constants.js';
 import { unzipFromUrl } from './utils/io.js';
+import logger from './utils/logger.js';
+import { httpsGet } from './utils/network.js';
 import { validateEnvVariables, validateMasterSourceTables } from './utils/validation.js';
 
 export const getMasterMetadata = async (version: number = 0): Promise<GetMasterMetadataResponsePayload> => {
@@ -107,7 +108,7 @@ export const getBookMetadata = async (
 export const downloadBook = async (id: number, options: DownloadBookOptions): Promise<string> => {
     logger.info(`downloadBook ${id} ${JSON.stringify(options)}`);
 
-    const { dir: folder } = path.parse(options.outputFile.path);
+    const { dir: folder, ext: extension } = path.parse(options.outputFile.path);
 
     const bookResponse: GetBookMetadataResponsePayload = options?.bookMetadata || (await getBookMetadata(id));
     const [[bookDatabase], [patchDatabase]]: string[][] = await Promise.all([
@@ -125,6 +126,10 @@ export const downloadBook = async (id: number, options: DownloadBookOptions): Pr
 
         logger.info(`Applying patches from ${patchDatabase} to ${bookDatabase}`);
         await applyPatches(client, bookDatabase, patchDatabase);
+
+        if (!options.preventCleanup) {
+            await Promise.all([fs.rm(bookDatabase, { recursive: true }), fs.rm(patchDatabase, { recursive: true })]);
+        }
     } finally {
         client.close();
     }
