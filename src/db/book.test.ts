@@ -4,7 +4,7 @@ import path from 'path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createTempDir } from '../utils/io';
-import { applyPatches, createTables } from './book';
+import { applyPatches, createTables, getData } from './book';
 import { attachDB, insertUnsafely } from './queryBuilder';
 import { Tables } from './types';
 
@@ -73,15 +73,6 @@ describe('book', () => {
     });
 
     describe('applyPatches', () => {
-        const selectAllFromTables = async () => {
-            const [{ rows: pages }, { rows: titles }] = await Promise.all([
-                client.execute(`SELECT * FROM page`),
-                client.execute(`SELECT * FROM title`),
-            ]);
-
-            return { pages, titles };
-        };
-
         it('should only copy the relevant pages and titles if there is no patch', async () => {
             await otherClient.executeMultiple(
                 [
@@ -123,7 +114,7 @@ describe('book', () => {
 
             await applyPatches(client, aslPath, patchPath);
 
-            const { pages, titles } = await selectAllFromTables();
+            const { pages, titles } = await getData(client);
 
             expect(pages).toHaveLength(0);
             expect(titles).toHaveLength(0);
@@ -136,8 +127,8 @@ describe('book', () => {
                 [
                     insertUnsafely(Tables.Page, { id: 1 }),
                     insertUnsafely(Tables.Page, { content: '2X', id: 2, number: '4', part: '1' }),
-                    insertUnsafely(Tables.Page, { id: 3 }),
-                    insertUnsafely(Tables.Title, { id: 2 }),
+                    insertUnsafely(Tables.Page, { content: '', id: 3 }),
+                    insertUnsafely(Tables.Title, { id: 2, page: 9 }),
                 ].join(';'),
             );
 
@@ -146,27 +137,29 @@ describe('book', () => {
                     insertUnsafely('patch.page', { content: 'F', id: 1, page: '#', part: '1' }),
                     insertUnsafely('patch.page', { content: '3X', id: 2, number: '#', part: '2' }),
                     insertUnsafely('patch.page', { content: '#', id: 3, number: '#', part: '#' }),
-                    insertUnsafely('patch.title', { content: 'T', id: 2 }),
+                    insertUnsafely('patch.title', { content: 'T', id: 2, page: 20 }),
                 ].join(';'),
             );
 
             await applyPatches(client, aslPath, patchPath);
 
-            const { pages, titles } = await selectAllFromTables();
+            const { pages, titles } = await getData(client);
 
             expect(pages).toEqual([
-                { content: 'F', id: 1, number: null, page: null, part: 1 },
-                { content: '3X', id: 2, number: 4, page: null, part: 2 },
-                { content: null, id: 3, number: null, page: null, part: null },
+                { content: 'F', id: 1, part: 1 },
+                { content: '3X', id: 2, number: 4, part: 2 },
+                { content: '', id: 3 },
             ]);
-            expect(titles).toEqual([{ content: 'T', id: 2, page: null, parent: null }]);
+            expect(titles).toEqual([{ content: 'T', id: 2, page: 20 }]);
         });
 
         it('should only patch the page and not the title', async () => {
             await createAslTables('patch', true, false);
 
             await otherClient.executeMultiple(
-                [insertUnsafely(Tables.Page, { id: 1 }), insertUnsafely(Tables.Title, { id: 2 })].join(';'),
+                [insertUnsafely(Tables.Page, { id: 1 }), insertUnsafely(Tables.Title, { content: 'T', id: 2 })].join(
+                    ';',
+                ),
             );
 
             await otherClient.executeMultiple(
@@ -175,27 +168,30 @@ describe('book', () => {
 
             await applyPatches(client, aslPath, patchPath);
 
-            const { pages, titles } = await selectAllFromTables();
+            const { pages, titles } = await getData(client);
 
-            expect(pages).toEqual([{ content: 'F', id: 1, number: null, page: null, part: 1 }]);
-            expect(titles).toEqual([{ content: null, id: 2, page: null, parent: null }]);
+            expect(pages).toEqual([{ content: 'F', id: 1, part: 1 }]);
+            expect(titles).toEqual([{ content: 'T', id: 2, page: null }]);
         });
 
         it('should only patch the title and not the page', async () => {
             await createAslTables('patch', false, true);
 
             await otherClient.executeMultiple(
-                [insertUnsafely(Tables.Page, { id: 1 }), insertUnsafely(Tables.Title, { id: 2 })].join(';'),
+                [
+                    insertUnsafely(Tables.Page, { content: 'C', id: 1 }),
+                    insertUnsafely(Tables.Title, { id: 2, page: 1 }),
+                ].join(';'),
             );
 
             await otherClient.executeMultiple([insertUnsafely('patch.title', { content: 'T', id: 2 })].join(';'));
 
             await applyPatches(client, aslPath, patchPath);
 
-            const { pages, titles } = await selectAllFromTables();
+            const { pages, titles } = await getData(client);
 
-            expect(pages).toEqual([{ content: null, id: 1, number: null, page: null, part: null }]);
-            expect(titles).toEqual([{ content: 'T', id: 2, page: null, parent: null }]);
+            expect(pages).toEqual([{ content: 'C', id: 1 }]);
+            expect(titles).toEqual([{ content: 'T', id: 2, page: 1 }]);
         });
     });
 });

@@ -1,8 +1,10 @@
 import { Client } from '@libsql/client';
 
+import { BookData, Page, Title } from '../types';
 import logger from '../utils/logger';
+import { selectAllRows } from './common';
 import { attachDB, buildPagePatchQuery, buildTitlePatchQuery, detachDB } from './queryBuilder';
-import { Tables } from './types';
+import { PageRow, Tables, TitleRow } from './types';
 
 const PATCH_DB_ALIAS = 'patch';
 const ASL_DB_ALIAS = 'asl';
@@ -18,6 +20,46 @@ export const createTables = async (db: Client) => {
             `CREATE TABLE title (id INTEGER PRIMARY KEY, content TEXT, page INTEGER, parent INTEGER)`,
         ].join(';'),
     );
+};
+
+export const getAllPages = async (db: Client): Promise<Page[]> => {
+    const rows = await selectAllRows(db, Tables.Page);
+
+    const pages: Page[] = rows.map((row: any) => {
+        const { content, id, number, page, part } = row as PageRow;
+
+        return {
+            content,
+            id,
+            ...(page && { page }),
+            ...(number && { number }),
+            ...(part && { part }),
+        };
+    });
+
+    return pages;
+};
+
+export const getAllTitles = async (db: Client): Promise<Title[]> => {
+    const rows = await selectAllRows(db, Tables.Title);
+
+    const titles: Title[] = rows.map((row: any) => {
+        const r = row as TitleRow;
+
+        return {
+            content: r.content,
+            id: r.id,
+            page: r.page,
+            ...(r.parent && { number: r.parent }),
+        };
+    });
+
+    return titles;
+};
+
+export const getData = async (db: Client): Promise<BookData> => {
+    const [pages, titles] = await Promise.all([getAllPages(db), getAllTitles(db)]);
+    return { pages, titles };
 };
 
 const getPagesToCopy = (tables: InternalTable[]): string[] => {

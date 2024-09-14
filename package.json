@@ -40,7 +40,7 @@
         "@semantic-release/changelog": "^6.0.3",
         "@semantic-release/git": "^10.0.1",
         "@types/eslint__js": "^8.42.3",
-        "@types/node": "^22.5.4",
+        "@types/node": "^22.5.5",
         "@types/unzipper": "^0.10.10",
         "@vitest/coverage-v8": "^2.1.1",
         "dotenv-vault": "^1.26.2",

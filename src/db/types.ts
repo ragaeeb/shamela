@@ -21,6 +21,21 @@ export type BookRow = {
     type: number;
 };
 
+export type PageRow = {
+    content: string;
+    id: number;
+    number: null | number;
+    page: null | number;
+    part: null | number;
+};
+
+export type TitleRow = {
+    content: string;
+    id: number;
+    page: number;
+    parent: null | number;
+};
+
 export type CategoryRow = {
     id: number;
     name: string;
