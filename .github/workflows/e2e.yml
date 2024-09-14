@@ -23,7 +23,7 @@ jobs:
               run: corepack enable
             - run: pnpm install --frozen-lockfile
             - run: pnpm run build
-            - run: pnpm run test:e2e:ci
+            - run: pnpm run e2e:ci
               env:
                   SHAMELA_API_KEY: ${{secrets.SHAMELA_API_KEY}}
                   SHAMELA_API_MASTER_PATCH_ENDPOINT: ${{secrets.SHAMELA_API_MASTER_PATCH_ENDPOINT}}
