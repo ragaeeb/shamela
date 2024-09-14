@@ -1,10 +1,10 @@
 {
     "name": "shamela",
     "version": "1.0.0",
-    "description": "Offline downloader for Maktabah al-Shamela",
+    "description": "Library to interact with the Maktabah Shamela v4 APIs",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/ragaeeb/shamela-builder.git"
+        "url": "git+https://github.com/ragaeeb/shamela.git"
     },
     "private": false,
     "main": "dist/main.js",
