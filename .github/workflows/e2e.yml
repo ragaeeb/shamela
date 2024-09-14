@@ -25,4 +25,6 @@ jobs:
             - run: pnpm run build
             - run: pnpm run test:e2e:ci
               env:
-                  WIT_AI_API_KEYS: ${{secrets.WIT_AI_API_KEYS}}
+                  SHAMELA_API_KEY: ${{secrets.SHAMELA_API_KEY}}
+                  SHAMELA_API_MASTER_PATCH_ENDPOINT: ${{secrets.SHAMELA_API_MASTER_PATCH_ENDPOINT}}
+                  SHAMELA_API_BOOKS_ENDPOINT: ${{secrets.SHAMELA_API_BOOKS_ENDPOINT}}
