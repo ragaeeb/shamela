@@ -1,7 +1,27 @@
 import { Buffer } from 'buffer';
 import { IncomingMessage } from 'http';
 import https from 'https';
-import { URL } from 'url';
+import process from 'process';
+import { URL, URLSearchParams } from 'url';
+
+export const buildUrl = (endpoint: string, params: Record<string, any>, useAuth: boolean = true): URL => {
+    const url = new URL(endpoint);
+    {
+        const params = new URLSearchParams();
+
+        Object.entries(params).forEach(([key, value]) => {
+            params.append(key, value.toString());
+        });
+
+        if (useAuth) {
+            params.append('api_key', process.env.SHAMELA_API_KEY as string);
+        }
+
+        url.search = params.toString();
+    }
+
+    return url;
+};
 
 export const httpsGet = (url: string | URL): Promise<Buffer | Record<string, any>> => {
     return new Promise((resolve, reject) => {

@@ -1,7 +1,9 @@
-import { promises as fs, createWriteStream } from 'fs';
+import { createWriteStream, promises as fs } from 'fs';
+import { IncomingMessage } from 'http';
 import https from 'https';
 import os from 'os';
 import path from 'path';
+import { pipeline } from 'stream/promises';
 import unzipper, { Entry } from 'unzipper';
 
 export const createTempDir = async (prefix = 'shamela') => {
@@ -19,44 +21,68 @@ export const fileExists = async (path: string) => !!(await fs.stat(path).catch((
  * @returns A promise that resolves with the list of all extracted files.
  */
 export async function unzipFromUrl(url: string, outputDir: string): Promise<string[]> {
-    return new Promise((resolve, reject) => {
-        try {
-            const extractedFiles: string[] = [];
+    const extractedFiles: string[] = [];
+    const entryPromises: Promise<void>[] = [];
 
-            // Make HTTPS request to download and stream the ZIP file
+    try {
+        // Make HTTPS request and get the response stream
+        const response = await new Promise<IncomingMessage>((resolve, reject) => {
             https
-                .get(url, (response) => {
-                    if (response.statusCode !== 200) {
-                        return reject(
-                            new Error(`Failed to download ZIP file: ${response.statusCode} ${response.statusMessage}`),
-                        );
+                .get(url, (res) => {
+                    if (res.statusCode !== 200) {
+                        reject(new Error(`Failed to download ZIP file: ${res.statusCode} ${res.statusMessage}`));
+                    } else {
+                        resolve(res);
                     }
-
-                    response
-                        .pipe(unzipper.Parse())
-                        .on('entry', async (entry: Entry) => {
-                            const filePath = path.join(outputDir, entry.path);
-
-                            if (entry.type === 'Directory') {
-                                await fs.mkdir(filePath, { recursive: true });
-                                entry.autodrain(); // No need to extract directory content
-                            } else {
-                                extractedFiles.push(filePath);
-                                entry.pipe(createWriteStream(filePath));
-                            }
-                        })
-                        .on('close', () => {
-                            resolve(extractedFiles); // Resolve with the list of extracted files
-                        })
-                        .on('error', (err) => {
-                            reject(new Error(`Error during extraction: ${err.message}`));
-                        });
                 })
                 .on('error', (err) => {
                     reject(new Error(`HTTPS request failed: ${err.message}`));
                 });
-        } catch (error: any) {
-            reject(new Error(`Error processing URL: ${error.message}`));
-        }
-    });
+        });
+
+        // Create unzip stream
+        const unzipStream = unzipper.Parse();
+
+        // Handle entries in the ZIP file
+        unzipStream.on('entry', (entry: Entry) => {
+            const entryPromise = (async () => {
+                const filePath = path.join(outputDir, entry.path);
+
+                if (entry.type === 'Directory') {
+                    // Ensure the directory exists
+                    await fs.mkdir(filePath, { recursive: true });
+                    entry.autodrain();
+                } else {
+                    // Ensure the parent directory exists
+                    const dir = path.dirname(filePath);
+                    await fs.mkdir(dir, { recursive: true });
+
+                    // Pipe the entry to a file
+                    await pipeline(entry, createWriteStream(filePath));
+                    extractedFiles.push(filePath);
+                }
+            })().catch((err) => {
+                // Emit errors to be handled by the unzipStream error handler
+                unzipStream.emit('error', err);
+            });
+
+            // Collect the promises
+            entryPromises.push(entryPromise);
+        });
+
+        // Handle errors in the unzip stream
+        unzipStream.on('error', (err) => {
+            throw new Error(`Error during extraction: ${err.message}`);
+        });
+
+        // Pipe the response into the unzip stream
+        await pipeline(response, unzipStream);
+
+        // Wait for all entry promises to complete
+        await Promise.all(entryPromises);
+
+        return extractedFiles;
+    } catch (error: any) {
+        throw new Error(`Error processing URL: ${error.message}`);
+    }
 }
