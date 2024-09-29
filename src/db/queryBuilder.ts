@@ -1,20 +1,6 @@
 const MAIN_DB_ALIAS = 'main';
 
-export const createTable = (name: string, fields: string[]): string =>
-    `CREATE TABLE IF NOT EXISTS ${name} (${fields.join(', ')})`;
-
 export const attachDB = (dbFile: string, alias: string) => `ATTACH DATABASE '${dbFile}' AS ${alias}`;
-
-export const detachDB = (alias: string) => `DETACH DATABASE ${alias}`;
-
-const updatePageColumn = (columnName: string, aslAlias: string, patchAlias: string): string => `
-  (SELECT CASE 
-             WHEN ${patchAlias}.page.${columnName} != '#' THEN ${patchAlias}.page.${columnName}
-             ELSE ${aslAlias}.page.${columnName}
-           END 
-    FROM ${patchAlias}.page
-    WHERE ${aslAlias}.page.id = ${patchAlias}.page.id)
-`;
 
 export const buildPagePatchQuery = (
     patchAlias: string,
@@ -56,6 +42,20 @@ export const buildTitlePatchQuery = (
     FROM ${patchAlias}.${tableName}
     WHERE ${aslAlias}.${tableName}.id = ${patchAlias}.${tableName}.id
   );
+`;
+
+export const createTable = (name: string, fields: string[]): string =>
+    `CREATE TABLE IF NOT EXISTS ${name} (${fields.join(', ')})`;
+
+export const detachDB = (alias: string) => `DETACH DATABASE ${alias}`;
+
+const updatePageColumn = (columnName: string, aslAlias: string, patchAlias: string): string => `
+  (SELECT CASE 
+             WHEN ${patchAlias}.page.${columnName} != '#' THEN ${patchAlias}.page.${columnName}
+             ELSE ${aslAlias}.page.${columnName}
+           END 
+    FROM ${patchAlias}.page
+    WHERE ${aslAlias}.page.id = ${patchAlias}.page.id)
 `;
 
 export const insertUnsafely = (table: string, fieldToValue: Record<string, any>, isDeleted = false): string => {

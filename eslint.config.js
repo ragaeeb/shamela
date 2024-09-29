@@ -2,7 +2,7 @@ import eslint from '@eslint/js';
 import tseslint from '@typescript-eslint/eslint-plugin';
 import parser from '@typescript-eslint/parser';
 import eslintConfigPrettier from 'eslint-config-prettier';
-import importPlugin from 'eslint-plugin-import';
+import orderlyFunctions from 'eslint-plugin-orderly-functions';
 import perfectionist from 'eslint-plugin-perfectionist';
 import eslintPluginPrettier from 'eslint-plugin-prettier';
 import vitest from 'eslint-plugin-vitest';
@@ -24,7 +24,7 @@ export default [
         },
         plugins: {
             '@typescript-eslint': tseslint,
-            import: importPlugin,
+            'orderly-functions': orderlyFunctions,
             prettier: eslintPluginPrettier,
             vitest,
         },
@@ -35,6 +35,7 @@ export default [
             '@typescript-eslint/no-explicit-any': 'off',
             'no-console': 'off',
             'no-plusplus': 'off',
+            'orderly-functions/sort-functions': ['error', { enableFixer: true }],
             'prettier/prettier': ['error'],
             radix: 'off',
         },

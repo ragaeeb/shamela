@@ -13,6 +13,34 @@ type InternalTable = {
     name: string;
 };
 
+export const applyPatches = async (db: Client, aslDB: string, patchDB?: string) => {
+    const statements: string[] = [attachDB(aslDB, ASL_DB_ALIAS)];
+
+    if (patchDB) {
+        await db.execute(attachDB(patchDB, PATCH_DB_ALIAS));
+    }
+
+    const { rows: tables } = patchDB
+        ? await db.execute(`SELECT name FROM ${PATCH_DB_ALIAS}.sqlite_master WHERE type='table'`)
+        : { rows: [] };
+
+    logger.debug({ tables }, `Applying patches for...`);
+
+    statements.push(...getPagesToCopy(tables as InternalTable[]));
+    statements.push(...getTitlesToCopy(tables as InternalTable[]));
+
+    await db.batch(statements);
+
+    const detachStatements = [];
+    detachStatements.push(detachDB(ASL_DB_ALIAS));
+
+    if (patchDB) {
+        detachStatements.push(detachDB(PATCH_DB_ALIAS));
+    }
+
+    return db.batch(detachStatements);
+};
+
 export const createTables = async (db: Client) => {
     return db.batch([
         `CREATE TABLE page (id INTEGER PRIMARY KEY, content TEXT, part INTEGER, page INTEGER, number INTEGER)`,
@@ -92,32 +120,4 @@ const getTitlesToCopy = (tables: InternalTable[]): string[] => {
     }
 
     return statements;
-};
-
-export const applyPatches = async (db: Client, aslDB: string, patchDB?: string) => {
-    const statements: string[] = [attachDB(aslDB, ASL_DB_ALIAS)];
-
-    if (patchDB) {
-        await db.execute(attachDB(patchDB, PATCH_DB_ALIAS));
-    }
-
-    const { rows: tables } = patchDB
-        ? await db.execute(`SELECT name FROM ${PATCH_DB_ALIAS}.sqlite_master WHERE type='table'`)
-        : { rows: [] };
-
-    logger.debug({ tables }, `Applying patches for...`);
-
-    statements.push(...getPagesToCopy(tables as InternalTable[]));
-    statements.push(...getTitlesToCopy(tables as InternalTable[]));
-
-    await db.batch(statements);
-
-    const detachStatements = [];
-    detachStatements.push(detachDB(ASL_DB_ALIAS));
-
-    if (patchDB) {
-        detachStatements.push(detachDB(PATCH_DB_ALIAS));
-    }
-
-    return db.batch(detachStatements);
 };
