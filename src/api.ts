@@ -24,6 +24,80 @@ import logger from './utils/logger.js';
 import { httpsGet } from './utils/network.js';
 import { validateEnvVariables, validateMasterSourceTables } from './utils/validation.js';
 
+export const getBookMetadata = async (
+    id: number,
+    options?: GetBookMetadataOptions,
+): Promise<GetBookMetadataResponsePayload> => {
+    validateEnvVariables();
+
+    const url = new URL(`${process.env.SHAMELA_API_BOOKS_ENDPOINT}/${id}`);
+    {
+        const params = new URLSearchParams();
+        params.append('api_key', process.env.SHAMELA_API_KEY as string);
+        params.append('major_release', (options?.majorVersion || 0).toString());
+        params.append('minor_release', (options?.minorVersion || 0).toString());
+        url.search = params.toString();
+    }
+
+    logger.info(`Fetching shamela.ws book link: ${url.toString()}`);
+
+    try {
+        const response: Record<string, any> = await httpsGet(url);
+        return {
+            majorRelease: response.major_release,
+            majorReleaseUrl: response.major_release_url,
+            ...(response.minor_release_url && { minorReleaseUrl: response.minor_release_url }),
+            ...(response.minor_release_url && { minorRelease: response.minor_release }),
+        };
+    } catch (error: any) {
+        throw new Error(`Error fetching master patch: ${error.message}`);
+    }
+};
+
+export const downloadBook = async (id: number, options: DownloadBookOptions): Promise<string> => {
+    logger.info(`downloadBook ${id} ${JSON.stringify(options)}`);
+
+    const outputDir = await createTempDir('shamela_downloadBook');
+
+    const bookResponse: GetBookMetadataResponsePayload = options?.bookMetadata || (await getBookMetadata(id));
+    const [[bookDatabase], [patchDatabase] = []]: string[][] = await Promise.all([
+        unzipFromUrl(bookResponse.majorReleaseUrl, outputDir),
+        ...(bookResponse.minorReleaseUrl ? [unzipFromUrl(bookResponse.minorReleaseUrl, outputDir)] : []),
+    ]);
+    const dbPath = path.join(outputDir, 'book.db');
+
+    const client: Client = createClient({
+        url: `file:${dbPath}`,
+    });
+
+    try {
+        logger.info(`Creating tables`);
+        await createBookTables(client);
+
+        logger.info(`Applying patches from ${patchDatabase} to ${bookDatabase}`);
+        await applyPatches(client, bookDatabase, patchDatabase);
+
+        const { ext: extension } = path.parse(options.outputFile.path);
+
+        if (extension === '.json') {
+            const result = await getBookData(client);
+            await fs.writeFile(options.outputFile.path, JSON.stringify(result, undefined, 2), 'utf8');
+        }
+
+        client.close();
+
+        if (extension === '.db' || extension === '.sqlite') {
+            await fs.rename(dbPath, options.outputFile.path);
+        }
+
+        await fs.rm(outputDir, { recursive: true });
+    } finally {
+        client.close();
+    }
+
+    return options.outputFile.path;
+};
+
 export const getMasterMetadata = async (version: number = 0): Promise<GetMasterMetadataResponsePayload> => {
     validateEnvVariables();
 
@@ -80,80 +154,6 @@ export const downloadMasterDatabase = async (options: DownloadMasterOptions): Pr
 
         if (extension === '.json') {
             const result = await getMasterData(client);
-            await fs.writeFile(options.outputFile.path, JSON.stringify(result, undefined, 2), 'utf8');
-        }
-
-        client.close();
-
-        if (extension === '.db' || extension === '.sqlite') {
-            await fs.rename(dbPath, options.outputFile.path);
-        }
-
-        await fs.rm(outputDir, { recursive: true });
-    } finally {
-        client.close();
-    }
-
-    return options.outputFile.path;
-};
-
-export const getBookMetadata = async (
-    id: number,
-    options?: GetBookMetadataOptions,
-): Promise<GetBookMetadataResponsePayload> => {
-    validateEnvVariables();
-
-    const url = new URL(`${process.env.SHAMELA_API_BOOKS_ENDPOINT}/${id}`);
-    {
-        const params = new URLSearchParams();
-        params.append('api_key', process.env.SHAMELA_API_KEY as string);
-        params.append('major_release', (options?.majorVersion || 0).toString());
-        params.append('minor_release', (options?.minorVersion || 0).toString());
-        url.search = params.toString();
-    }
-
-    logger.info(`Fetching shamela.ws book link: ${url.toString()}`);
-
-    try {
-        const response: Record<string, any> = await httpsGet(url);
-        return {
-            majorRelease: response.major_release,
-            majorReleaseUrl: response.major_release_url,
-            ...(response.minor_release_url && { minorReleaseUrl: response.minor_release_url }),
-            ...(response.minor_release_url && { minorRelease: response.minor_release }),
-        };
-    } catch (error: any) {
-        throw new Error(`Error fetching master patch: ${error.message}`);
-    }
-};
-
-export const downloadBook = async (id: number, options: DownloadBookOptions): Promise<string> => {
-    logger.info(`downloadBook ${id} ${JSON.stringify(options)}`);
-
-    const outputDir = await createTempDir('shamela_downloadBook');
-
-    const bookResponse: GetBookMetadataResponsePayload = options?.bookMetadata || (await getBookMetadata(id));
-    const [[bookDatabase], [patchDatabase]]: string[][] = await Promise.all([
-        unzipFromUrl(bookResponse.majorReleaseUrl, outputDir),
-        ...(bookResponse.minorReleaseUrl ? [unzipFromUrl(bookResponse.minorReleaseUrl, outputDir)] : []),
-    ]);
-    const dbPath = path.join(outputDir, 'book.db');
-
-    const client: Client = createClient({
-        url: `file:${dbPath}`,
-    });
-
-    try {
-        logger.info(`Creating tables`);
-        await createBookTables(client);
-
-        logger.info(`Applying patches from ${patchDatabase} to ${bookDatabase}`);
-        await applyPatches(client, bookDatabase, patchDatabase);
-
-        const { ext: extension } = path.parse(options.outputFile.path);
-
-        if (extension === '.json') {
-            const result = await getBookData(client);
             await fs.writeFile(options.outputFile.path, JSON.stringify(result, undefined, 2), 'utf8');
         }
 

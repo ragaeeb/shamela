@@ -7,6 +7,26 @@ import { selectAllRows } from './common';
 import { attachDB, detachDB } from './queryBuilder';
 import { BookRow, Tables } from './types';
 
+export const copyForeignMasterTableData = async (db: Client, sourceTables: string[]) => {
+    const aliasToPath: Record<string, string> = sourceTables.reduce((acc, tablePath) => {
+        const { name } = path.parse(tablePath);
+        return { ...acc, [name]: tablePath };
+    }, {});
+
+    const attachStatements: string[] = Object.entries(aliasToPath).map(([alias, dbPath]) => attachDB(dbPath, alias));
+    await db.batch(attachStatements);
+
+    const insertStatements: string[] = [
+        `INSERT INTO ${Tables.Authors} SELECT id,name,biography,(CASE WHEN death_number = ${UNKNOWN_VALUE_PLACEHOLDER} THEN NULL ELSE death_number END) AS death_number FROM author WHERE is_deleted='0'`,
+        `INSERT INTO ${Tables.Books} SELECT id,name,category,type,(CASE WHEN date = ${UNKNOWN_VALUE_PLACEHOLDER} THEN NULL ELSE date END) AS date,author,printed,major_release,minor_release,bibliography,hint,pdf_links,metadata FROM book WHERE is_deleted='0'`,
+        `INSERT INTO ${Tables.Categories} SELECT id,name FROM category WHERE is_deleted='0'`,
+    ];
+    await db.batch(insertStatements);
+
+    const detachStatements: string[] = Object.keys(aliasToPath).map(detachDB);
+    await db.batch(detachStatements);
+};
+
 export const createTables = async (db: Client) => {
     return db.batch([
         `CREATE TABLE authors (id INTEGER PRIMARY KEY, name TEXT, biography TEXT, death INTEGER)`,
@@ -26,6 +46,32 @@ export const getAllAuthors = async (db: Client): Promise<Author[]> => {
     }));
 
     return authors;
+};
+
+export const getAllBooks = async (db: Client): Promise<Book[]> => {
+    const rows = await selectAllRows(db, Tables.Books);
+
+    const books: Book[] = rows.map((row: any) => {
+        const r = row as BookRow;
+
+        return {
+            author: parseAuthor(r.author),
+            bibliography: r.bibliography,
+            category: r.category,
+            id: r.id,
+            major: r.major,
+            metadata: JSON.parse(r.metadata),
+            name: r.name,
+            printed: r.printed,
+            type: r.type,
+            ...(r.date && r.date.toString() !== UNKNOWN_VALUE_PLACEHOLDER && { date: r.date }),
+            ...(r.hint && { hint: r.hint }),
+            ...(r.pdf_links && { pdfLinks: parsePdfLinks(r.pdf_links) }),
+            ...(r.minor && { minorRelease: r.minor }),
+        };
+    });
+
+    return books;
 };
 
 export const getAllCategories = async (db: Client): Promise<Category[]> => {
@@ -57,53 +103,7 @@ const parsePdfLinks = (value: string): PDFLinks => {
     return result as PDFLinks;
 };
 
-export const getAllBooks = async (db: Client): Promise<Book[]> => {
-    const rows = await selectAllRows(db, Tables.Books);
-
-    const books: Book[] = rows.map((row: any) => {
-        const r = row as BookRow;
-
-        return {
-            author: parseAuthor(r.author),
-            bibliography: r.bibliography,
-            category: r.category,
-            id: r.id,
-            major: r.major,
-            metadata: JSON.parse(r.metadata),
-            name: r.name,
-            printed: r.printed,
-            type: r.type,
-            ...(r.date && r.date.toString() !== UNKNOWN_VALUE_PLACEHOLDER && { date: r.date }),
-            ...(r.hint && { hint: r.hint }),
-            ...(r.pdf_links && { pdfLinks: parsePdfLinks(r.pdf_links) }),
-            ...(r.minor && { minorRelease: r.minor }),
-        };
-    });
-
-    return books;
-};
-
 export const getData = async (db: Client): Promise<MasterData> => {
     const [authors, books, categories] = await Promise.all([getAllAuthors(db), getAllBooks(db), getAllCategories(db)]);
     return { authors, books, categories };
-};
-
-export const copyForeignMasterTableData = async (db: Client, sourceTables: string[]) => {
-    const aliasToPath: Record<string, string> = sourceTables.reduce((acc, tablePath) => {
-        const { name } = path.parse(tablePath);
-        return { ...acc, [name]: tablePath };
-    }, {});
-
-    const attachStatements: string[] = Object.entries(aliasToPath).map(([alias, dbPath]) => attachDB(dbPath, alias));
-    await db.batch(attachStatements);
-
-    const insertStatements: string[] = [
-        `INSERT INTO ${Tables.Authors} SELECT id,name,biography,(CASE WHEN death_number = ${UNKNOWN_VALUE_PLACEHOLDER} THEN NULL ELSE death_number END) AS death_number FROM author WHERE is_deleted='0'`,
-        `INSERT INTO ${Tables.Books} SELECT id,name,category,type,(CASE WHEN date = ${UNKNOWN_VALUE_PLACEHOLDER} THEN NULL ELSE date END) AS date,author,printed,major_release,minor_release,bibliography,hint,pdf_links,metadata FROM book WHERE is_deleted='0'`,
-        `INSERT INTO ${Tables.Categories} SELECT id,name FROM category WHERE is_deleted='0'`,
-    ];
-    await db.batch(insertStatements);
-
-    const detachStatements: string[] = Object.keys(aliasToPath).map(detachDB);
-    await db.batch(detachStatements);
 };

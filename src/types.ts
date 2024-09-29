@@ -24,13 +24,9 @@ export type GetBookMetadataResponsePayload = {
     minorReleaseUrl?: string;
 };
 
-export interface OutputBookOptions extends OutputOptions {
-    removeHeaderTags?: boolean;
-}
-
 export type DownloadBookOptions = {
     bookMetadata?: GetBookMetadataResponsePayload;
-    outputFile: OutputBookOptions;
+    outputFile: OutputOptions;
 };
 
 export type Author = {
