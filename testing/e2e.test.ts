@@ -131,5 +131,16 @@ describe('e2e', () => {
             },
             { timeout: 20000 },
         );
+
+        it(
+            'should get the not crash if is_deleted column is not available',
+            async () => {
+                const { pages, titles = [] } = await getBook(1388);
+
+                expect(pages.length > 200).toBe(true);
+                expect(titles.length > 110).toBe(true);
+            },
+            { timeout: 20000 },
+        );
     });
 });

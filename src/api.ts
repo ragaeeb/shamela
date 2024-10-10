@@ -4,7 +4,7 @@ import path from 'path';
 import process from 'process';
 import { URL, URLSearchParams } from 'url';
 
-import { applyPatches, createTables as createBookTables, getData as getBookData } from './db/book.js';
+import { applyPatches, copyTableData, createTables as createBookTables, getData as getBookData } from './db/book.js';
 import {
     copyForeignMasterTableData,
     createTables as createMasterTables,
@@ -74,8 +74,13 @@ export const downloadBook = async (id: number, options: DownloadBookOptions): Pr
         logger.info(`Creating tables`);
         await createBookTables(client);
 
-        logger.info(`Applying patches from ${patchDatabase} to ${bookDatabase}`);
-        await applyPatches(client, bookDatabase, patchDatabase);
+        if (patchDatabase) {
+            logger.info(`Applying patches from ${patchDatabase} to ${bookDatabase}`);
+            await applyPatches(client, bookDatabase, patchDatabase);
+        } else {
+            logger.info(`Copying table data from ${bookDatabase}`);
+            await copyTableData(client, bookDatabase);
+        }
 
         const { ext: extension } = path.parse(options.outputFile.path);
 
