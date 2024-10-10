@@ -4,7 +4,7 @@ import path from 'path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createTempDir } from '../utils/io';
-import { applyPatches, createTables, getData } from './book';
+import { applyPatches, copyTableData, createTables, getData } from './book';
 import { attachDB, insertUnsafely } from './queryBuilder';
 import { Tables } from './types';
 
@@ -70,6 +70,34 @@ describe('book', () => {
             fs.rm(patchPath, { recursive: true }),
             fs.rm(dbPath, { recursive: true }),
         ]);
+    });
+
+    describe('copyTableData', () => {
+        it('should only copy the relevant pages and titles', async () => {
+            await otherClient.executeMultiple(
+                [
+                    insertUnsafely(Tables.Page, { content: `P1 #2 1/1`, id: 1, number: 2, page: 1 }),
+                    insertUnsafely(Tables.Page, { content: `P2 #3 1/2`, id: 2, number: 3, page: 2, part: 1 }),
+                    insertUnsafely(Tables.Page, { content: `P3 #4 2/3`, id: 3, number: 4, page: 3, part: 2 }),
+                    insertUnsafely(Tables.Title, { content: `T1`, id: 1, page: 1 }),
+                ].join(';'),
+            );
+
+            await copyTableData(client, aslPath);
+
+            const [{ rows: pages }, { rows: titles }] = await Promise.all([
+                client.execute(`SELECT * FROM page`),
+                client.execute(`SELECT * FROM title`),
+            ]);
+
+            expect(pages).toEqual([
+                { content: 'P1 #2 1/1', id: 1, number: 2, page: 1, part: null },
+                { content: 'P2 #3 1/2', id: 2, number: 3, page: 2, part: 1 },
+                { content: 'P3 #4 2/3', id: 3, number: 4, page: 3, part: 2 },
+            ]);
+
+            expect(titles).toEqual([{ content: 'T1', id: 1, page: 1, parent: null }]);
+        });
     });
 
     describe('applyPatches', () => {
