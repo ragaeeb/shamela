@@ -185,3 +185,11 @@ export const getBook = async (id: number): Promise<BookData> => {
 
     return data;
 };
+
+export const getBookUpdates = (id: number): any => {
+    // https://dev.shamela.ws/api/v1/patches/book-updates/149481?major_release=0&minor_release=0
+};
+
+export const getCover = async (id: number): any => {
+    // https://dev.shamela.ws/covers/30001.jpg?1
+};
