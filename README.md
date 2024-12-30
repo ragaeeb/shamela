@@ -1,27 +1,37 @@
 # Shamela
 
-[![wakatime](https://wakatime.com/badge/user/a0b906ce-b8e7-4463-8bce-383238df6d4b/project/faef70ab-efdb-448b-ab83-0fc66c95888e.svg)](https://wakatime.com/badge/user/a0b906ce-b8e7-4463-8bce-383238df6d4b/project/faef70ab-efdb-448b-ab83-0fc66c95888e) [![E2E](https://github.com/ragaeeb/shamela/actions/workflows/e2e.yml/badge.svg)](https://github.com/ragaeeb/shamela/actions/workflows/e2e.yml) [![Node.js CI](https://github.com/ragaeeb/shamela/actions/workflows/build.yml/badge.svg)](https://github.com/ragaeeb/shamela/actions/workflows/build.yml) ![GitHub License](https://img.shields.io/github/license/ragaeeb/shamela) ![GitHub Release](https://img.shields.io/github/v/release/ragaeeb/shamela) [![codecov](https://codecov.io/gh/ragaeeb/shamela/graph/badge.svg?token=PK55V1R324)](https://codecov.io/gh/ragaeeb/shamela) [![Size](https://deno.bundlejs.com/badge?q=shamela@1.0.3)](https://bundlejs.com/?q=shamela%401.0.3) ![typescript](https://badgen.net/badge/icon/typescript?icon=typescript&label&color=blue) ![npm](https://img.shields.io/npm/v/shamela) ![npm](https://img.shields.io/npm/dm/shamela) ![GitHub issues](https://img.shields.io/github/issues/ragaeeb/shamela) ![GitHub stars](https://img.shields.io/github/stars/ragaeeb/shamela?style=social)
+[![wakatime](https://wakatime.com/badge/user/a0b906ce-b8e7-4463-8bce-383238df6d4b/project/faef70ab-efdb-448b-ab83-0fc66c95888e.svg)](https://wakatime.com/badge/user/a0b906ce-b8e7-4463-8bce-383238df6d4b/project/faef70ab-efdb-448b-ab83-0fc66c95888e)
+[![E2E](https://github.com/ragaeeb/shamela/actions/workflows/e2e.yml/badge.svg)](https://github.com/ragaeeb/shamela/actions/workflows/e2e.yml)
+[![Node.js CI](https://github.com/ragaeeb/shamela/actions/workflows/build.yml/badge.svg)](https://github.com/ragaeeb/shamela/actions/workflows/build.yml) ![GitHub License](https://img.shields.io/github/license/ragaeeb/shamela)
+![GitHub Release](https://img.shields.io/github/v/release/ragaeeb/shamela)
+[![codecov](https://codecov.io/gh/ragaeeb/shamela/graph/badge.svg?token=PK55V1R324)](https://codecov.io/gh/ragaeeb/shamela)
+[![Size](https://deno.bundlejs.com/badge?q=shamela@1.0.5)](https://bundlejs.com/?q=shamela%401.0.5)
+![typescript](https://badgen.net/badge/icon/typescript?icon=typescript&label&color=blue)
+![npm](https://img.shields.io/npm/v/shamela)
+![npm](https://img.shields.io/npm/dm/shamela)
+![GitHub issues](https://img.shields.io/github/issues/ragaeeb/shamela)
+![GitHub stars](https://img.shields.io/github/stars/ragaeeb/shamela?style=social)
 
 A `NodeJS` library for accessing and downloading Maktabah Shamela v4 APIs. This library provides easy-to-use functions to interact with the Shamela API, download master and book databases, and retrieve book data programmatically.
 
 ## Table of Contents
 
--   [Installation](#installation)
--   [Environment Variables](#environment-variables)
--   [Usage](#usage)
-    -   [Getting Started](#getting-started)
-    -   [API Functions](#api-functions)
-        -   [getMasterMetadata](#getmastermetadata)
-        -   [downloadMasterDatabase](#downloadmasterdatabase)
-        -   [getBookMetadata](#getbookmetadata)
-        -   [downloadBook](#downloadbook)
-        -   [getBook](#getbook)
--   [Examples](#examples)
-    -   [Downloading the Master Database](#downloading-the-master-database)
-    -   [Downloading a Book](#downloading-a-book)
-    -   [Retrieving Book Data](#retrieving-book-data)
--   [Testing](#testing)
--   [License](#license)
+- [Installation](#installation)
+- [Environment Variables](#environment-variables)
+- [Usage](#usage)
+    - [Getting Started](#getting-started)
+    - [API Functions](#api-functions)
+        - [getMasterMetadata](#getmastermetadata)
+        - [downloadMasterDatabase](#downloadmasterdatabase)
+        - [getBookMetadata](#getbookmetadata)
+        - [downloadBook](#downloadbook)
+        - [getBook](#getbook)
+- [Examples](#examples)
+    - [Downloading the Master Database](#downloading-the-master-database)
+    - [Downloading a Book](#downloading-a-book)
+    - [Retrieving Book Data](#retrieving-book-data)
+- [Testing](#testing)
+- [License](#license)
 
 ## Installation
 
@@ -77,7 +87,7 @@ getMasterMetadata(version?: number): Promise<GetMasterMetadataResponsePayload>
 
 ```
 
--   version (optional): The version number of the master database you want to fetch.
+- version (optional): The version number of the master database you want to fetch.
 
 Example:
 
@@ -94,9 +104,9 @@ downloadMasterDatabase(options: DownloadMasterOptions): Promise<string>
 
 ```
 
--   options: An object containing:
-    -   masterMetadata (optional): The metadata obtained from getMasterMetadata.
-    -   outputFile: An object specifying the output path.
+- options: An object containing:
+    - masterMetadata (optional): The metadata obtained from getMasterMetadata.
+    - outputFile: An object specifying the output path.
 
 Example:
 
@@ -114,10 +124,10 @@ Fetches metadata for a specific book.
 getBookMetadata(id: number, options?: GetBookMetadataOptions): Promise<GetBookMetadataResponsePayload>
 ```
 
--   id: The ID of the book.
--   options (optional): An object containing:
-    -   majorVersion: The major version of the book.
-    -   minorVersion: The minor version of the book.
+- id: The ID of the book.
+- options (optional): An object containing:
+    - majorVersion: The major version of the book.
+    - minorVersion: The minor version of the book.
 
 Example:
 
@@ -135,7 +145,7 @@ Retrieves the data of a book as a JavaScript object.
 getBook(id: number): Promise<BookData>
 ```
 
--   id: The ID of the book.
+- id: The ID of the book.
 
 Example:
 
