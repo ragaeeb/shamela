@@ -10,20 +10,24 @@ jobs:
         if: github.event.pull_request.merged == true
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@main
               with:
-                  lfs: true
                   fetch-depth: 0
-
-            - name: Use Node.js 21.x
+            - name: Use Node.js 22.x
               uses: actions/setup-node@v4
               with:
-                  node-version: 21.x
-            - name: Enable Corepack
-              run: corepack enable
-            - run: pnpm install --frozen-lockfile
-            - run: pnpm run build
-            - run: pnpm run e2e:ci
+                  node-version: 22.x
+
+            - name: Set up Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: latest
+
+            - name: Install dependencies
+              run: bun install --frozen-lockfile
+
+            - name: E2E
+            - run: bun run e2e:ci
               env:
                   SHAMELA_API_KEY: ${{secrets.SHAMELA_API_KEY}}
                   SHAMELA_API_MASTER_PATCH_ENDPOINT: ${{secrets.SHAMELA_API_MASTER_PATCH_ENDPOINT}}

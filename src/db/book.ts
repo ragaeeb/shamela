@@ -9,64 +9,61 @@ import { PageRow, Tables, TitleRow } from './types';
 const PATCH_DB_ALIAS = 'patch';
 const ASL_DB_ALIAS = 'asl';
 
-const getPagesToCopy = (tables: InternalTable[]): string[] => {
+const buildCopyStatements = (
+    patchTables: InternalTable[],
+    aslTables: InternalTable[],
+    table: Tables,
+    fields: string[],
+    patchQuery: string,
+): string[] => {
     const statements = [];
 
-    if (tables.find((t) => t.name === Tables.Page)) {
+    if (patchTables.find((t) => t.name === table)) {
         statements.push(
-            `INSERT INTO main.${Tables.Page} SELECT id,content,part,page,number FROM ${ASL_DB_ALIAS}.${Tables.Page} WHERE id IN (SELECT id FROM ${PATCH_DB_ALIAS}.${Tables.Page} WHERE is_deleted='0')`,
+            `INSERT INTO main.${table} SELECT ${fields.join(',')} FROM ${ASL_DB_ALIAS}.${table} WHERE id IN (SELECT id FROM ${PATCH_DB_ALIAS}.${table} WHERE is_deleted='0')`,
         );
-        statements.push(buildPagePatchQuery(PATCH_DB_ALIAS, Tables.Page));
+        statements.push(patchQuery);
     } else {
-        statements.push(
-            `INSERT INTO main.${Tables.Page} SELECT id,content,part,page,number FROM ${ASL_DB_ALIAS}.${Tables.Page} WHERE is_deleted='0'`,
-        );
+        let copyStatement = `INSERT INTO main.${table} SELECT ${fields.join(',')} FROM ${ASL_DB_ALIAS}.${table}`;
+
+        if (aslTables.find((t) => t.name === table)?.fields.includes('is_deleted')) {
+            copyStatement += ` WHERE is_deleted='0'`;
+        }
+
+        statements.push(copyStatement);
     }
 
     return statements;
 };
 
-const getTitlesToCopy = (tables: InternalTable[]): string[] => {
-    const statements = [];
+export const applyPatches = async (db: Client, aslDB: string, patchDB: string) => {
+    await Promise.all([db.execute(attachDB(aslDB, ASL_DB_ALIAS)), db.execute(attachDB(patchDB, PATCH_DB_ALIAS))]);
 
-    if (tables.find((t) => t.name === Tables.Title)) {
-        statements.push(
-            `INSERT INTO main.${Tables.Title} SELECT id,content,page,parent FROM ${ASL_DB_ALIAS}.${Tables.Title} WHERE id IN (SELECT id FROM ${PATCH_DB_ALIAS}.${Tables.Title} WHERE is_deleted='0')`,
-        );
-        statements.push(buildTitlePatchQuery(PATCH_DB_ALIAS, Tables.Title));
-    } else {
-        statements.push(
-            `INSERT INTO main.${Tables.Title} SELECT id,content,page,parent FROM ${ASL_DB_ALIAS}.${Tables.Title} WHERE is_deleted='0'`,
-        );
-    }
+    const [patchTables, aslTables] = await Promise.all([
+        getInternalTables(db, PATCH_DB_ALIAS),
+        getInternalTables(db, ASL_DB_ALIAS),
+    ]);
 
-    return statements;
-};
+    logger.debug({ aslTables, patchTables }, `Applying patches for...`);
 
-export const applyPatches = async (db: Client, aslDB: string, patchDB?: string) => {
-    const statements: string[] = [attachDB(aslDB, ASL_DB_ALIAS)];
+    await db.batch([
+        ...buildCopyStatements(
+            patchTables,
+            aslTables,
+            Tables.Page,
+            ['id', 'content', 'part', 'page', 'number'],
+            buildPagePatchQuery(PATCH_DB_ALIAS, Tables.Page),
+        ),
+        ...buildCopyStatements(
+            patchTables,
+            aslTables,
+            Tables.Title,
+            ['id', 'content', 'page', 'parent'],
+            buildTitlePatchQuery(PATCH_DB_ALIAS, Tables.Title),
+        ),
+    ]);
 
-    if (patchDB) {
-        await db.execute(attachDB(patchDB, PATCH_DB_ALIAS));
-    }
-
-    const tables = patchDB ? await getInternalTables(db, PATCH_DB_ALIAS) : [];
-
-    logger.debug({ tables }, `Applying patches for...`);
-
-    statements.push(...getPagesToCopy(tables));
-    statements.push(...getTitlesToCopy(tables));
-
-    await db.batch(statements);
-
-    const detachStatements = [];
-    detachStatements.push(detachDB(ASL_DB_ALIAS));
-
-    if (patchDB) {
-        detachStatements.push(detachDB(PATCH_DB_ALIAS));
-    }
-
-    return db.batch(detachStatements);
+    return db.batch([detachDB(ASL_DB_ALIAS), detachDB(PATCH_DB_ALIAS)]);
 };
 
 export const copyTableData = async (db: Client, aslDB: string) => {
