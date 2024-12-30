@@ -11,19 +11,29 @@ jobs:
         runs-on: ubuntu-latest
 
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@main
               with:
                   fetch-depth: 0
-            - name: Use Node.js 21.x
+            - name: Use Node.js 22.x
               uses: actions/setup-node@v4
               with:
-                  node-version: 21.x
-            - name: Enable Corepack
-              run: corepack enable
-            - run: pnpm install --frozen-lockfile
-            - run: pnpm run build
-            - run: pnpm test
+                  node-version: 22.x
+
+            - name: Set up Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: latest
+
+            - name: Install dependencies
+              run: bun install --frozen-lockfile
+
+            - name: Build project
+              run: bun run build
+
+            - name: Test
+              run: bun run test
+
             - name: Upload results to Codecov
-              uses: codecov/codecov-action@v4
+              uses: codecov/codecov-action@v5
               with:
                   token: ${{ secrets.CODECOV_TOKEN }}
