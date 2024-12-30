@@ -33,7 +33,7 @@ jobs:
               run: bun run build
 
             - name: Publish
-            - run: bunx semantic-release
+              run: bunx semantic-release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   NPM_TOKEN: ${{ secrets.PUBLISH_NPM_TOKEN }}
