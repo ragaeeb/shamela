@@ -101,32 +101,6 @@ describe('book', () => {
     });
 
     describe('applyPatches', () => {
-        it('should only copy the relevant pages and titles if there is no patch', async () => {
-            await otherClient.executeMultiple(
-                [
-                    insertUnsafely(Tables.Page, { content: `P1 #2 1/1`, id: 1, number: 2, page: 1 }),
-                    insertUnsafely(Tables.Page, { content: `P2 #3 1/2`, id: 2, number: 3, page: 2, part: 1 }),
-                    insertUnsafely(Tables.Page, { content: `P3 #4 2/3`, id: 3, number: 4, page: 3, part: 2 }),
-                    insertUnsafely(Tables.Title, { content: `T1`, id: 1, page: 1 }),
-                ].join(';'),
-            );
-
-            await applyPatches(client, aslPath);
-
-            const [{ rows: pages }, { rows: titles }] = await Promise.all([
-                client.execute(`SELECT * FROM page`),
-                client.execute(`SELECT * FROM title`),
-            ]);
-
-            expect(pages).toEqual([
-                { content: 'P1 #2 1/1', id: 1, number: 2, page: 1, part: null },
-                { content: 'P2 #3 1/2', id: 2, number: 3, page: 2, part: 1 },
-                { content: 'P3 #4 2/3', id: 3, number: 4, page: 3, part: 2 },
-            ]);
-
-            expect(titles).toEqual([{ content: 'T1', id: 1, page: 1, parent: null }]);
-        });
-
         it('should not include pages and titles that were deleted', async () => {
             await createAslTables('patch');
 
@@ -213,6 +187,30 @@ describe('book', () => {
             );
 
             await otherClient.executeMultiple([insertUnsafely('patch.title', { content: 'T', id: 2 })].join(';'));
+
+            await applyPatches(client, aslPath, patchPath);
+
+            const { pages, titles } = await getData(client);
+
+            expect(pages).toEqual([{ content: 'C', id: 1 }]);
+            expect(titles).toEqual([{ content: 'T', id: 2, page: 1 }]);
+        });
+
+        it('should handle case where is_deleted does not exist on the asl', async () => {
+            await otherClient.executeMultiple([`DROP TABLE main.title`, `DROP TABLE main.page`].join(';'));
+            await otherClient.executeMultiple(
+                [
+                    `CREATE TABLE main.page (id INTEGER PRIMARY KEY, content TEXT, part TEXT, page TEXT, number TEXT, services TEXT)`,
+                    `CREATE TABLE main.title (id INTEGER PRIMARY KEY, content TEXT, page INTEGER, parent INTEGER)`,
+                ].join(';'),
+            );
+
+            await otherClient.executeMultiple(
+                [
+                    `INSERT INTO main.page (id,content) VALUES (1, 'C')`,
+                    `INSERT INTO main.title (id,content,page) VALUES (2, 'T',1)`,
+                ].join(';'),
+            );
 
             await applyPatches(client, aslPath, patchPath);
 

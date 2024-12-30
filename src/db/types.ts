@@ -1,3 +1,11 @@
+export enum Tables {
+    Authors = 'authors',
+    Books = 'books',
+    Categories = 'categories',
+    Page = 'page',
+    Title = 'title',
+}
+
 export type AuthorRow = {
     biography: string;
     death: number;
@@ -21,6 +29,11 @@ export type BookRow = {
     type: number;
 };
 
+export type CategoryRow = {
+    id: number;
+    name: string;
+};
+
 export type PageRow = {
     content: string;
     id: number;
@@ -35,16 +48,3 @@ export type TitleRow = {
     page: number;
     parent: null | number;
 };
-
-export type CategoryRow = {
-    id: number;
-    name: string;
-};
-
-export enum Tables {
-    Authors = 'authors',
-    Books = 'books',
-    Categories = 'categories',
-    Page = 'page',
-    Title = 'title',
-}
