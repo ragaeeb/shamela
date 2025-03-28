@@ -1,8 +1,8 @@
 import { Client, createClient } from '@libsql/client';
-import { promises as fs } from 'fs';
-import path from 'path';
-import process from 'process';
-import { URL, URLSearchParams } from 'url';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import process from 'node:process';
+import { URL, URLSearchParams } from 'node:url';
 
 import { applyPatches, copyTableData, createTables as createBookTables, getData as getBookData } from './db/book.js';
 import {
@@ -24,6 +24,20 @@ import logger from './utils/logger.js';
 import { httpsGet } from './utils/network.js';
 import { validateEnvVariables, validateMasterSourceTables } from './utils/validation.js';
 
+const fixHttpsProtocol = (originalUrl: string) => {
+    const url = new URL(originalUrl);
+    url.protocol = 'https';
+
+    return url.toString();
+};
+
+type BookUpdatesResponse = {
+    major_release: number;
+    major_release_url: string;
+    minor_release?: number;
+    minor_release_url?: string;
+};
+
 export const getBookMetadata = async (
     id: number,
     options?: GetBookMetadataOptions,
@@ -42,11 +56,11 @@ export const getBookMetadata = async (
     logger.info(`Fetching shamela.ws book link: ${url.toString()}`);
 
     try {
-        const response: Record<string, any> = await httpsGet(url);
+        const response = (await httpsGet(url)) as BookUpdatesResponse;
         return {
             majorRelease: response.major_release,
-            majorReleaseUrl: response.major_release_url,
-            ...(response.minor_release_url && { minorReleaseUrl: response.minor_release_url }),
+            majorReleaseUrl: fixHttpsProtocol(response.major_release_url),
+            ...(response.minor_release_url && { minorReleaseUrl: fixHttpsProtocol(response.minor_release_url) }),
             ...(response.minor_release_url && { minorRelease: response.minor_release }),
         };
     } catch (error: any) {
