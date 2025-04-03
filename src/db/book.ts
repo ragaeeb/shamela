@@ -20,7 +20,14 @@ const buildCopyStatements = (
 
     if (patchTables.find((t) => t.name === table)) {
         statements.push(
-            `INSERT INTO main.${table} SELECT ${fields.join(',')} FROM ${ASL_DB_ALIAS}.${table} WHERE id IN (SELECT id FROM ${PATCH_DB_ALIAS}.${table} WHERE is_deleted='0')`,
+            `INSERT INTO main.${table} 
+             SELECT ${fields.join(',')} 
+             FROM ${ASL_DB_ALIAS}.${table} 
+             WHERE id NOT IN (
+                 SELECT id 
+                 FROM ${PATCH_DB_ALIAS}.${table} 
+                 WHERE is_deleted='1'
+             )`,
         );
         statements.push(patchQuery);
     } else {
@@ -70,7 +77,7 @@ export const copyTableData = async (db: Client, aslDB: string) => {
     await db.execute(attachDB(aslDB, ASL_DB_ALIAS));
     const tables = await getInternalTables(db, ASL_DB_ALIAS);
 
-    logger.debug({ tables }, `Applying patches for...`);
+    logger.debug({ tables }, `copyTableData...`);
 
     await db.batch([
         `INSERT INTO main.${Tables.Title} SELECT id,content,page,parent FROM ${ASL_DB_ALIAS}.${Tables.Title}`,
