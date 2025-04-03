@@ -14,7 +14,7 @@ describe('e2e', () => {
     });
 
     afterEach(async () => {
-        //await fs.rm(outputDir, { recursive: true });
+        await fs.rm(outputDir, { recursive: true });
     });
 
     describe('downloadMasterDatabase', () => {
