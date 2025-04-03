@@ -1,8 +1,8 @@
 import { Client, createClient } from '@libsql/client';
-import { promises as fs } from 'fs';
-import path from 'path';
-import process from 'process';
-import { URL, URLSearchParams } from 'url';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import process from 'node:process';
+import { URL } from 'node:url';
 
 import { applyPatches, copyTableData, createTables as createBookTables, getData as getBookData } from './db/book.js';
 import {
@@ -21,8 +21,22 @@ import {
 import { DEFAULT_MASTER_METADATA_VERSION } from './utils/constants.js';
 import { createTempDir, unzipFromUrl } from './utils/io.js';
 import logger from './utils/logger.js';
-import { httpsGet } from './utils/network.js';
+import { buildUrl, httpsGet } from './utils/network.js';
 import { validateEnvVariables, validateMasterSourceTables } from './utils/validation.js';
+
+const fixHttpsProtocol = (originalUrl: string) => {
+    const url = new URL(originalUrl);
+    url.protocol = 'https';
+
+    return url.toString();
+};
+
+type BookUpdatesResponse = {
+    major_release: number;
+    major_release_url: string;
+    minor_release?: number;
+    minor_release_url?: string;
+};
 
 export const getBookMetadata = async (
     id: number,
@@ -30,23 +44,19 @@ export const getBookMetadata = async (
 ): Promise<GetBookMetadataResponsePayload> => {
     validateEnvVariables();
 
-    const url = new URL(`${process.env.SHAMELA_API_BOOKS_ENDPOINT}/${id}`);
-    {
-        const params = new URLSearchParams();
-        params.append('api_key', process.env.SHAMELA_API_KEY as string);
-        params.append('major_release', (options?.majorVersion || 0).toString());
-        params.append('minor_release', (options?.minorVersion || 0).toString());
-        url.search = params.toString();
-    }
+    const url = buildUrl(`${process.env.SHAMELA_API_BOOKS_ENDPOINT}/${id}`, {
+        major_release: (options?.majorVersion || 0).toString(),
+        minor_release: (options?.minorVersion || 0).toString(),
+    });
 
     logger.info(`Fetching shamela.ws book link: ${url.toString()}`);
 
     try {
-        const response: Record<string, any> = await httpsGet(url);
+        const response = (await httpsGet(url)) as BookUpdatesResponse;
         return {
             majorRelease: response.major_release,
-            majorReleaseUrl: response.major_release_url,
-            ...(response.minor_release_url && { minorReleaseUrl: response.minor_release_url }),
+            majorReleaseUrl: fixHttpsProtocol(response.major_release_url),
+            ...(response.minor_release_url && { minorReleaseUrl: fixHttpsProtocol(response.minor_release_url) }),
             ...(response.minor_release_url && { minorRelease: response.minor_release }),
         };
     } catch (error: any) {
@@ -106,13 +116,7 @@ export const downloadBook = async (id: number, options: DownloadBookOptions): Pr
 export const getMasterMetadata = async (version: number = 0): Promise<GetMasterMetadataResponsePayload> => {
     validateEnvVariables();
 
-    const url = new URL(process.env.SHAMELA_API_MASTER_PATCH_ENDPOINT as string);
-    {
-        const params = new URLSearchParams();
-        params.append('api_key', process.env.SHAMELA_API_KEY as string);
-        params.append('version', version.toString());
-        url.search = params.toString();
-    }
+    const url = buildUrl(process.env.SHAMELA_API_MASTER_PATCH_ENDPOINT as string, { version: version.toString() });
 
     logger.info(`Fetching shamela.ws master database patch link: ${url.toString()}`);
 
@@ -122,6 +126,11 @@ export const getMasterMetadata = async (version: number = 0): Promise<GetMasterM
     } catch (error: any) {
         throw new Error(`Error fetching master patch: ${error.message}`);
     }
+};
+
+export const getCoverUrl = (bookId: number) => {
+    const { host } = new URL(process.env.SHAMELA_API_MASTER_PATCH_ENDPOINT as string);
+    return `${host}/covers/${bookId}.jpg`;
 };
 
 export const downloadMasterDatabase = async (options: DownloadMasterOptions): Promise<string> => {
