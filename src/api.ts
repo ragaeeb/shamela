@@ -142,7 +142,7 @@ export const downloadMasterDatabase = async (options: DownloadMasterOptions): Pr
         options.masterMetadata || (await getMasterMetadata(DEFAULT_MASTER_METADATA_VERSION));
 
     logger.info(`Downloading master database from: ${JSON.stringify(masterResponse)}`);
-    const sourceTables: string[] = await unzipFromUrl(masterResponse.url, outputDir);
+    const sourceTables: string[] = await unzipFromUrl(fixHttpsProtocol(masterResponse.url), outputDir);
 
     logger.info(`sourceTables downloaded: ${sourceTables.toString()}`);
 

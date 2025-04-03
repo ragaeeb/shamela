@@ -4,12 +4,12 @@ import https from 'https';
 import process from 'process';
 import { URL, URLSearchParams } from 'url';
 
-export const buildUrl = (endpoint: string, params: Record<string, any>, useAuth: boolean = true): URL => {
+export const buildUrl = (endpoint: string, queryParams: Record<string, any>, useAuth: boolean = true): URL => {
     const url = new URL(endpoint);
     {
         const params = new URLSearchParams();
 
-        Object.entries(params).forEach(([key, value]) => {
+        Object.entries(queryParams).forEach(([key, value]) => {
             params.append(key, value.toString());
         });
 

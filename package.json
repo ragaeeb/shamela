@@ -1,6 +1,6 @@
 {
     "name": "shamela",
-    "version": "1.0.4",
+    "version": "1.0.6",
     "description": "Library to interact with the Maktabah Shamela v4 APIs",
     "repository": {
         "type": "git",
@@ -40,7 +40,6 @@
         "@semantic-release/changelog": "^6.0.3",
         "@semantic-release/git": "^10.0.1",
         "@types/bun": "^1.2.8",
-        "@types/eslint__js": "^9.14.0",
         "@types/node": "^22.14.0",
         "@types/unzipper": "^0.10.11",
         "@vitest/coverage-v8": "^3.1.1",
