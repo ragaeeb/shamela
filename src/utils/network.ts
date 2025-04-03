@@ -23,7 +23,7 @@ export const buildUrl = (endpoint: string, params: Record<string, any>, useAuth:
     return url;
 };
 
-export const httpsGet = (url: string | URL): Promise<Buffer | Record<string, any>> => {
+export const httpsGet = <T extends Buffer | Record<string, any>>(url: string | URL): Promise<T> => {
     return new Promise((resolve, reject) => {
         https
             .get(url, (res: IncomingMessage) => {
@@ -45,7 +45,7 @@ export const httpsGet = (url: string | URL): Promise<Buffer | Record<string, any
                             reject(new Error(`Failed to parse JSON: ${error.message}`));
                         }
                     } else {
-                        resolve(fullData);
+                        resolve(fullData as T);
                     }
                 });
             })
