@@ -1,10 +1,11 @@
 import { Client, createClient } from '@libsql/client';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { UNKNOWN_VALUE_PLACEHOLDER } from '../utils/constants';
 import { createTempDir } from '../utils/io';
+import { setLogger } from '../utils/logger';
 import { copyForeignMasterTableData, createTables, getData } from './master';
 import { attachDB, insertUnsafely } from './queryBuilder';
 
@@ -23,6 +24,7 @@ describe('master', () => {
         bookPath = path.join(dbFolder, 'book.sqlite');
         categoryPath = path.join(dbFolder, 'category.sqlite');
         authorPath = path.join(dbFolder, 'author.sqlite');
+        setLogger(console);
     });
 
     afterAll(async () => {

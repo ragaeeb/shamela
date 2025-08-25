@@ -1,5 +1,5 @@
+import { describe, expect, it } from 'bun:test';
 import { promises as fs } from 'fs';
-import { describe, expect, it } from 'vitest';
 
 import { createTempDir, unzipFromUrl } from './io';
 
@@ -14,6 +14,6 @@ describe('io', () => {
 
             expect(files).toHaveLength(10);
             await fs.rm(tempDir, { recursive: true });
-        }, 10000);
+        }, 20000);
     });
 });

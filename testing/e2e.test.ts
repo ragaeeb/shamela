@@ -1,13 +1,18 @@
 import { Client, createClient } from '@libsql/client';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { downloadBook, downloadMasterDatabase, getBook } from '../src/api';
 import { createTempDir } from '../src/utils/io';
+import { setLogger } from '../src/utils/logger';
 
 describe('e2e', () => {
     let outputDir;
+
+    beforeAll(() => {
+        setLogger(console);
+    });
 
     beforeEach(async () => {
         outputDir = await createTempDir('shamela_e2e');

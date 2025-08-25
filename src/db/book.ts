@@ -43,6 +43,26 @@ const buildCopyStatements = (
     return statements;
 };
 
+/**
+ * Applies patches from a patch database to the main book database.
+ *
+ * This function handles the process of applying updates and patches to book data
+ * by attaching both the original ASL database and patch database, then merging
+ * the data while excluding deleted records and applying updates from patches.
+ *
+ * @param db - The libSQL client instance for the main database
+ * @param aslDB - Path to the original ASL database file
+ * @param patchDB - Path to the patch database file containing updates
+ * @returns A promise that resolves when patches are successfully applied
+ *
+ * @throws {Error} When database operations fail or tables cannot be attached
+ *
+ * @example
+ * ```typescript
+ * const client = createClient({ url: 'file:./book.db' });
+ * await applyPatches(client, './original.db', './patch.db');
+ * ```
+ */
 export const applyPatches = async (db: Client, aslDB: string, patchDB: string) => {
     await Promise.all([db.execute(attachDB(aslDB, ASL_DB_ALIAS)), db.execute(attachDB(patchDB, PATCH_DB_ALIAS))]);
 
@@ -73,6 +93,25 @@ export const applyPatches = async (db: Client, aslDB: string, patchDB: string) =
     return db.batch([detachDB(ASL_DB_ALIAS), detachDB(PATCH_DB_ALIAS)]);
 };
 
+/**
+ * Copies table data from an ASL database to the main database.
+ *
+ * This function is used when no patches are available and data needs to be
+ * copied directly from the original ASL database to the main database.
+ * It handles both page and title data.
+ *
+ * @param db - The libSQL client instance for the main database
+ * @param aslDB - Path to the ASL database file to copy data from
+ * @returns A promise that resolves when data copying is complete
+ *
+ * @throws {Error} When database operations fail or the ASL database cannot be attached
+ *
+ * @example
+ * ```typescript
+ * const client = createClient({ url: 'file:./book.db' });
+ * await copyTableData(client, './source.db');
+ * ```
+ */
 export const copyTableData = async (db: Client, aslDB: string) => {
     await db.execute(attachDB(aslDB, ASL_DB_ALIAS));
     const tables = await getInternalTables(db, ASL_DB_ALIAS);
@@ -87,6 +126,23 @@ export const copyTableData = async (db: Client, aslDB: string) => {
     return db.execute(detachDB(ASL_DB_ALIAS));
 };
 
+/**
+ * Creates the necessary database tables for storing book data.
+ *
+ * This function sets up the schema for the book database by creating
+ * the 'page' and 'title' tables with their respective columns and constraints.
+ *
+ * @param db - The libSQL client instance where tables should be created
+ * @returns A promise that resolves when tables are successfully created
+ *
+ * @throws {Error} When table creation fails due to database constraints or permissions
+ *
+ * @example
+ * ```typescript
+ * const client = createClient({ url: 'file:./book.db' });
+ * await createTables(client);
+ * ```
+ */
 export const createTables = async (db: Client) => {
     return db.batch([
         `CREATE TABLE page (id INTEGER PRIMARY KEY, content TEXT, part INTEGER, page INTEGER, number INTEGER)`,
@@ -94,6 +150,25 @@ export const createTables = async (db: Client) => {
     ]);
 };
 
+/**
+ * Retrieves all pages from the book database.
+ *
+ * This function queries the database for all page records and transforms
+ * them into a structured format, filtering out null values and organizing
+ * the data according to the Page type interface.
+ *
+ * @param db - The libSQL client instance to query
+ * @returns A promise that resolves to an array of Page objects
+ *
+ * @throws {Error} When database query fails or data transformation encounters issues
+ *
+ * @example
+ * ```typescript
+ * const client = createClient({ url: 'file:./book.db' });
+ * const pages = await getAllPages(client);
+ * console.log(pages[0].content); // Page content text
+ * ```
+ */
 export const getAllPages = async (db: Client): Promise<Page[]> => {
     const rows = await selectAllRows(db, Tables.Page);
 
@@ -112,6 +187,26 @@ export const getAllPages = async (db: Client): Promise<Page[]> => {
     return pages;
 };
 
+/**
+ * Retrieves all titles from the book database.
+ *
+ * This function queries the database for all title records and transforms
+ * them into a structured format. Titles represent the hierarchical structure
+ * and table of contents for the book.
+ *
+ * @param db - The libSQL client instance to query
+ * @returns A promise that resolves to an array of Title objects
+ *
+ * @throws {Error} When database query fails or data transformation encounters issues
+ *
+ * @example
+ * ```typescript
+ * const client = createClient({ url: 'file:./book.db' });
+ * const titles = await getAllTitles(client);
+ * console.log(titles[0].content); // Title text
+ * console.log(titles[0].parent); // Parent title ID if applicable
+ * ```
+ */
 export const getAllTitles = async (db: Client): Promise<Title[]> => {
     const rows = await selectAllRows(db, Tables.Title);
 
@@ -129,6 +224,26 @@ export const getAllTitles = async (db: Client): Promise<Title[]> => {
     return titles;
 };
 
+/**
+ * Retrieves complete book data including both pages and titles.
+ *
+ * This function combines the results from getAllPages and getAllTitles
+ * to provide a complete representation of the book's content and structure.
+ * This is typically the final step in processing book data.
+ *
+ * @param db - The libSQL client instance to query
+ * @returns A promise that resolves to complete BookData containing pages and titles
+ *
+ * @throws {Error} When database queries fail or data processing encounters issues
+ *
+ * @example
+ * ```typescript
+ * const client = createClient({ url: 'file:./book.db' });
+ * const bookData = await getData(client);
+ * console.log(bookData.pages.length); // Number of pages
+ * console.log(bookData.titles?.length); // Number of titles
+ * ```
+ */
 export const getData = async (db: Client): Promise<BookData> => {
     const [pages, titles] = await Promise.all([getAllPages(db), getAllTitles(db)]);
     return { pages, titles };

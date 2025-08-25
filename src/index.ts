@@ -1,5 +1,3 @@
-import { downloadBook, downloadMasterDatabase, getBook, getBookMetadata, getMasterMetadata } from './api';
-
-export { downloadBook, downloadMasterDatabase, getBook, getBookMetadata, getMasterMetadata };
-
+export * from './api';
 export * from './types';
+export { setLogger } from './utils/logger';

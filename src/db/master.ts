@@ -7,6 +7,27 @@ import { selectAllRows } from './common';
 import { attachDB, detachDB } from './queryBuilder';
 import { BookRow, Tables } from './types';
 
+/**
+ * Copies data from foreign master table files into the main master database.
+ *
+ * This function processes the source table files (author.sqlite, book.sqlite, category.sqlite)
+ * by attaching them to the current database connection, then copying their data into
+ * the main master database tables. It handles data transformation including filtering
+ * out deleted records and converting placeholder values.
+ *
+ * @param db - The libSQL client instance for the master database
+ * @param sourceTables - Array of file paths to the source SQLite table files
+ * @returns A promise that resolves when all data has been copied successfully
+ *
+ * @throws {Error} When source files cannot be attached or data copying operations fail
+ *
+ * @example
+ * ```typescript
+ * const client = createClient({ url: 'file:./master.db' });
+ * const sources = ['./author.sqlite', './book.sqlite', './category.sqlite'];
+ * await copyForeignMasterTableData(client, sources);
+ * ```
+ */
 export const copyForeignMasterTableData = async (db: Client, sourceTables: string[]) => {
     const aliasToPath: Record<string, string> = sourceTables.reduce((acc, tablePath) => {
         const { name } = path.parse(tablePath);
@@ -27,6 +48,25 @@ export const copyForeignMasterTableData = async (db: Client, sourceTables: strin
     await db.batch(detachStatements);
 };
 
+/**
+ * Creates the necessary database tables for the master database.
+ *
+ * This function sets up the schema for the master database by creating
+ * tables for authors, books, and categories with their respective columns
+ * and data types. This is typically the first step in setting up a new
+ * master database.
+ *
+ * @param db - The libSQL client instance where tables should be created
+ * @returns A promise that resolves when all tables are successfully created
+ *
+ * @throws {Error} When table creation fails due to database constraints or permissions
+ *
+ * @example
+ * ```typescript
+ * const client = createClient({ url: 'file:./master.db' });
+ * await createTables(client);
+ * ```
+ */
 export const createTables = async (db: Client) => {
     return db.batch([
         `CREATE TABLE authors (id INTEGER PRIMARY KEY, name TEXT, biography TEXT, death INTEGER)`,

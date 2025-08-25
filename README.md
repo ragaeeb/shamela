@@ -5,7 +5,7 @@
 [![Node.js CI](https://github.com/ragaeeb/shamela/actions/workflows/build.yml/badge.svg)](https://github.com/ragaeeb/shamela/actions/workflows/build.yml) ![GitHub License](https://img.shields.io/github/license/ragaeeb/shamela)
 ![GitHub Release](https://img.shields.io/github/v/release/ragaeeb/shamela)
 [![codecov](https://codecov.io/gh/ragaeeb/shamela/graph/badge.svg?token=PK55V1R324)](https://codecov.io/gh/ragaeeb/shamela)
-[![Size](https://deno.bundlejs.com/badge?q=shamela@1.0.5)](https://bundlejs.com/?q=shamela%401.0.5)
+[![Size](https://deno.bundlejs.com/badge?q=shamela@latestq)](https://bundlejs.com/?q=shamela%40latest)
 ![typescript](https://badgen.net/badge/icon/typescript?icon=typescript&label&color=blue)
 ![npm](https://img.shields.io/npm/v/shamela)
 ![npm](https://img.shields.io/npm/dm/shamela)

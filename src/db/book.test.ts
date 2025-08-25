@@ -1,9 +1,10 @@
 import { Client, createClient } from '@libsql/client';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createTempDir } from '../utils/io';
+import { setLogger } from '../utils/logger';
 import { applyPatches, copyTableData, createTables, getData } from './book';
 import { attachDB, insertUnsafely } from './queryBuilder';
 import { Tables } from './types';
@@ -43,6 +44,7 @@ describe('book', () => {
         dbPath = path.join(dbFolder, 'book.db');
         aslPath = path.join(dbFolder, 'asl.db');
         patchPath = path.join(dbFolder, 'patch.db');
+        setLogger(console);
     });
 
     afterAll(async () => {
