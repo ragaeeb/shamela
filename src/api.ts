@@ -1,4 +1,4 @@
-import { Client, createClient } from '@libsql/client';
+import { Database } from 'bun:sqlite';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -120,9 +120,7 @@ export const downloadBook = async (id: number, options: DownloadBookOptions): Pr
     ]);
     const dbPath = path.join(outputDir, 'book.db');
 
-    const client: Client = createClient({
-        url: `file:${dbPath}`,
-    });
+    const client = new Database(dbPath);
 
     try {
         logger.info(`Creating tables`);
@@ -257,9 +255,7 @@ export const downloadMasterDatabase = async (options: DownloadMasterOptions): Pr
 
     const dbPath = path.join(outputDir, 'master.db');
 
-    const client: Client = createClient({
-        url: `file:${dbPath}`,
-    });
+    const client = new Database(dbPath);
 
     try {
         logger.info(`Creating tables`);
@@ -272,7 +268,7 @@ export const downloadMasterDatabase = async (options: DownloadMasterOptions): Pr
 
         if (extension === '.json') {
             const result = await getMasterData(client);
-            await fs.writeFile(options.outputFile.path, JSON.stringify(result, undefined, 2), 'utf8');
+            await Bun.file(options.outputFile.path).write(JSON.stringify(result, null, 2));
         }
 
         client.close();
@@ -312,7 +308,7 @@ export const getBook = async (id: number): Promise<BookData> => {
     const outputDir = await createTempDir('shamela_getBookData');
     const outputPath = await downloadBook(id, { outputFile: { path: path.join(outputDir, `${id}.json`) } });
 
-    const data = JSON.parse(await fs.readFile(outputPath, 'utf8')) as BookData;
+    const data: BookData = await Bun.file(outputPath).json();
     await fs.rm(outputDir, { recursive: true });
 
     return data;

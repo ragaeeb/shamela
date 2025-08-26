@@ -1,4 +1,4 @@
-import { Client, createClient } from '@libsql/client';
+import { Database } from 'bun:sqlite';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { promises as fs } from 'fs';
 import path from 'path';
@@ -29,9 +29,7 @@ describe('e2e', () => {
             const result = await downloadMasterDatabase({ outputFile: { path: dbPath } });
             expect(result).toEqual(dbPath);
 
-            const client: Client = createClient({
-                url: `file:${dbPath}`,
-            });
+            const client = new Database(dbPath);
 
             try {
                 const {
@@ -69,9 +67,7 @@ describe('e2e', () => {
             const result = await downloadBook(26592, { outputFile: { path: dbPath } });
             expect(result).toEqual(dbPath);
 
-            const client: Client = createClient({
-                url: `file:${dbPath}`,
-            });
+            const client = new Database(dbPath);
 
             try {
                 const {

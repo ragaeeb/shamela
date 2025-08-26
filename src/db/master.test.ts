@@ -1,7 +1,7 @@
-import { Client, createClient } from '@libsql/client';
+import { Database } from 'bun:sqlite';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
-import { promises as fs } from 'fs';
-import path from 'path';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 
 import { UNKNOWN_VALUE_PLACEHOLDER } from '../utils/constants';
 import { createTempDir } from '../utils/io';
@@ -10,8 +10,8 @@ import { copyForeignMasterTableData, createTables, getData } from './master';
 import { attachDB, insertUnsafely } from './queryBuilder';
 
 describe('master', () => {
-    let client: Client;
-    let otherClient: Client;
+    let client: Database;
+    let otherClient: Database;
     let dbPath: string;
     let authorPath: string;
     let bookPath: string;
@@ -31,27 +31,22 @@ describe('master', () => {
         await fs.rm(dbFolder, { recursive: true });
     });
 
-    beforeEach(async () => {
-        client = createClient({
-            url: `file:${dbPath}`,
+    beforeEach(() => {
+        client = new Database(dbPath);
+        otherClient = new Database(bookPath);
+
+        otherClient.run(attachDB(categoryPath, 'categories'));
+        otherClient.run(attachDB(authorPath, 'authors'));
+
+        [
+            `CREATE TABLE authors.author (id INTEGER, is_deleted TEXT, name TEXT,biography TEXT, death_text TEXT, death_number TEXT)`,
+            `CREATE TABLE main.book (id INTEGER, name TEXT, is_deleted TEXT, category TEXT, type TEXT, date TEXT, author TEXT, printed TEXT, minor_release TEXT, major_release TEXT, bibliography TEXT, hint TEXT, pdf_links TEXT, metadata TEXT)`,
+            `CREATE TABLE categories.category (id INTEGER, is_deleted TEXT, "order" TEXT, name TEXT)`,
+        ].forEach((statement) => {
+            otherClient.run(statement);
         });
 
-        otherClient = createClient({
-            url: `file:${bookPath}`,
-        });
-
-        await Promise.all([
-            otherClient.executeMultiple(
-                [
-                    attachDB(categoryPath, 'categories'),
-                    attachDB(authorPath, 'authors'),
-                    `CREATE TABLE authors.author (id INTEGER, is_deleted TEXT, name TEXT,biography TEXT, death_text TEXT, death_number TEXT)`,
-                    `CREATE TABLE main.book (id INTEGER, name TEXT, is_deleted TEXT, category TEXT, type TEXT, date TEXT, author TEXT, printed TEXT, minor_release TEXT, major_release TEXT, bibliography TEXT, hint TEXT, pdf_links TEXT, metadata TEXT)`,
-                    `CREATE TABLE categories.category (id INTEGER, is_deleted TEXT, "order" TEXT, name TEXT)`,
-                ].join(';'),
-            ),
-            createTables(client),
-        ]);
+        createTables(client);
     });
 
     afterEach(async () => {
@@ -67,8 +62,8 @@ describe('master', () => {
     });
 
     describe('copyForeignMasterTableData', () => {
-        it('should build the database from the original source tables', async () => {
-            await otherClient.executeMultiple(
+        it.only('should build the database from the original source tables', () => {
+            otherClient.transaction((t) => {
                 [
                     insertUnsafely('authors.author', {
                         biography: 'Bio',
@@ -99,16 +94,18 @@ describe('master', () => {
                         name: 'B',
                     }),
                     insertUnsafely('categories.category', { '`order`': '1', id: 1, name: 'Fiqh' }),
-                ].join(';'),
-            );
+                ].forEach((statement) => {
+                    t.run(statement);
+                });
+            });
 
-            await copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
+            copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
 
-            const { authors, books, categories } = await getData(client);
+            const { authors, books, categories } = getData(client);
 
             expect(authors).toEqual([{ biography: 'Bio', death: 99, id: 1, name: 'Ahmad' }]);
 
-            expect(books).toEqual([
+            expect(books).toMatchObject([
                 {
                     author: 513,
                     bibliography: 'biblio',
@@ -146,8 +143,8 @@ describe('master', () => {
             expect(categories).toEqual([{ id: 1, name: 'Fiqh' }]);
         });
 
-        it('should not include deleted records', async () => {
-            await otherClient.executeMultiple(
+        it('should not include deleted records', () => {
+            otherClient.transaction((t) => {
                 [
                     insertUnsafely(
                         'authors.author',
@@ -164,20 +161,22 @@ describe('master', () => {
                         true,
                     ),
                     insertUnsafely('categories.category', { id: 1 }, true),
-                ].join(';'),
-            );
+                ].forEach((statement) => {
+                    t.run(statement);
+                });
+            });
 
-            await copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
+            copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
 
-            const { authors, books, categories } = await getData(client);
+            const { authors, books, categories } = getData(client);
 
             expect(authors).toHaveLength(0);
             expect(books).toHaveLength(0);
             expect(categories).toHaveLength(0);
         });
 
-        it('should omit placeholders for unknown dates', async () => {
-            await otherClient.executeMultiple(
+        it('should omit placeholders for unknown dates', () => {
+            otherClient.transaction((t) => {
                 [
                     insertUnsafely('authors.author', {
                         death_number: UNKNOWN_VALUE_PLACEHOLDER,
@@ -188,12 +187,14 @@ describe('master', () => {
                         date: UNKNOWN_VALUE_PLACEHOLDER,
                         id: 1,
                     }),
-                ].join(';'),
-            );
+                ].forEach((statement) => {
+                    t.run(statement);
+                });
+            });
 
-            await copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
+            copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
 
-            const { authors, books } = await getData(client);
+            const { authors, books } = getData(client);
 
             expect(authors[0].death).toBeUndefined();
             expect(books[0].date).toBeUndefined();

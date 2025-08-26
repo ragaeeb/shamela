@@ -1,7 +1,7 @@
-import { Client, createClient } from '@libsql/client';
+import { Database } from 'bun:sqlite';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
-import { promises as fs } from 'fs';
-import path from 'path';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 
 import { createTempDir } from '../utils/io';
 import { setLogger } from '../utils/logger';
@@ -10,33 +10,25 @@ import { attachDB, insertUnsafely } from './queryBuilder';
 import { Tables } from './types';
 
 describe('book', () => {
-    let client: Client;
-    let otherClient: Client;
+    let client: Database;
+    let otherClient: Database;
     let dbPath: string;
     let aslPath: string;
     let patchPath: string;
     let dbFolder: string;
 
-    const createAslTables = async (
-        alias: string = 'main',
-        createPages: boolean = true,
-        createTitles: boolean = true,
-    ): Promise<void> => {
-        const statements: string[] = [];
-
+    const createAslTables = (alias: string = 'main', createPages: boolean = true, createTitles: boolean = true) => {
         if (createPages) {
-            statements.push(
+            otherClient.run(
                 `CREATE TABLE ${alias}.page (id INTEGER PRIMARY KEY, content TEXT, part TEXT, page TEXT, number TEXT, services TEXT, is_deleted TEXT)`,
             );
         }
 
         if (createTitles) {
-            statements.push(
+            otherClient.run(
                 `CREATE TABLE ${alias}.title (id INTEGER PRIMARY KEY, content TEXT, page INTEGER, parent INTEGER, is_deleted TEXT)`,
             );
         }
-
-        return otherClient.executeMultiple(statements.join(';'));
     };
 
     beforeAll(async () => {
@@ -51,16 +43,13 @@ describe('book', () => {
         await fs.rm(dbFolder, { recursive: true });
     });
 
-    beforeEach(async () => {
-        client = createClient({
-            url: `file:${dbPath}`,
-        });
+    beforeEach(() => {
+        client = new Database(dbPath);
+        otherClient = new Database(dbPath);
 
-        otherClient = createClient({
-            url: `file:${aslPath}`,
-        });
-
-        await Promise.all([otherClient.execute(attachDB(patchPath, 'patch')), createAslTables(), createTables(client)]);
+        otherClient.run(attachDB(patchPath, 'patch'));
+        createAslTables();
+        createTables(client);
     });
 
     afterEach(async () => {
@@ -75,22 +64,20 @@ describe('book', () => {
     });
 
     describe('copyTableData', () => {
-        it('should only copy the relevant pages and titles', async () => {
-            await otherClient.executeMultiple(
+        it('should only copy the relevant pages and titles', () => {
+            otherClient.transaction((t) => {
                 [
                     insertUnsafely(Tables.Page, { content: `P1 #2 1/1`, id: 1, number: 2, page: 1 }),
                     insertUnsafely(Tables.Page, { content: `P2 #3 1/2`, id: 2, number: 3, page: 2, part: 1 }),
                     insertUnsafely(Tables.Page, { content: `P3 #4 2/3`, id: 3, number: 4, page: 3, part: 2 }),
                     insertUnsafely(Tables.Title, { content: `T1`, id: 1, page: 1 }),
-                ].join(';'),
-            );
+                ].forEach((statement) => t.run(statement));
+            });
 
-            await copyTableData(client, aslPath);
+            copyTableData(client, aslPath);
 
-            const [{ rows: pages }, { rows: titles }] = await Promise.all([
-                client.execute(`SELECT * FROM page`),
-                client.execute(`SELECT * FROM title`),
-            ]);
+            const pages = client.query(`SELECT * FROM page`).all();
+            const titles = client.query(`SELECT * FROM title`).all();
 
             expect(pages).toEqual([
                 { content: 'P1 #2 1/1', id: 1, number: 2, page: 1, part: null },
@@ -98,56 +85,50 @@ describe('book', () => {
                 { content: 'P3 #4 2/3', id: 3, number: 4, page: 3, part: 2 },
             ]);
 
-            expect(titles).toEqual([{ content: 'T1', id: 1, page: 1, parent: null }]);
+            expect(titles).toEqual([{ content: 'T1', id: 1, page: 1, parent: null }] as any);
         });
     });
 
     describe('applyPatches', () => {
-        it('should not include pages and titles that were deleted', async () => {
-            await createAslTables('patch');
+        it('should not include pages and titles that were deleted', () => {
+            createAslTables('patch');
 
-            await otherClient.executeMultiple(
-                [insertUnsafely(Tables.Page, { id: 1 }), insertUnsafely(Tables.Title, { id: 2 })].join(';'),
-            );
+            otherClient.transaction((t) => {
+                [
+                    insertUnsafely(Tables.Page, { id: 1 }),
+                    insertUnsafely(Tables.Title, { id: 2 }),
+                    insertUnsafely('patch.page', { id: 1 }, true),
+                    insertUnsafely('patch.title', { id: 2 }, true),
+                ].forEach((statement) => t.run(statement));
+            });
 
-            await otherClient.executeMultiple(
-                [insertUnsafely('patch.page', { id: 1 }, true), insertUnsafely('patch.title', { id: 2 }, true)].join(
-                    ';',
-                ),
-            );
+            applyPatches(client, aslPath, patchPath);
 
-            await applyPatches(client, aslPath, patchPath);
+            const { pages, titles } = getData(client);
 
-            const { pages, titles } = await getData(client);
-
-            expect(pages).toHaveLength(0);
-            expect(titles).toHaveLength(0);
+            expect(pages).toBeEmpty();
+            expect(titles).toBeEmpty();
         });
 
-        it('should patch the page and title fields', async () => {
-            await createAslTables('patch');
+        it('should patch the page and title fields', () => {
+            createAslTables('patch');
 
-            await otherClient.executeMultiple(
+            otherClient.transaction((t) => {
                 [
                     insertUnsafely(Tables.Page, { id: 1 }),
                     insertUnsafely(Tables.Page, { content: '2X', id: 2, number: '4', part: '1' }),
                     insertUnsafely(Tables.Page, { content: '', id: 3 }),
                     insertUnsafely(Tables.Title, { id: 2, page: 9 }),
-                ].join(';'),
-            );
-
-            await otherClient.executeMultiple(
-                [
                     insertUnsafely('patch.page', { content: 'F', id: 1, page: '#', part: '1' }),
                     insertUnsafely('patch.page', { content: '3X', id: 2, number: '#', part: '2' }),
                     insertUnsafely('patch.page', { content: '#', id: 3, number: '#', part: '#' }),
                     insertUnsafely('patch.title', { content: 'T', id: 2, page: 20 }),
-                ].join(';'),
-            );
+                ].forEach((statement) => t.run(statement));
+            });
 
-            await applyPatches(client, aslPath, patchPath);
+            applyPatches(client, aslPath, patchPath);
 
-            const { pages, titles } = await getData(client);
+            const { pages, titles } = getData(client);
 
             expect(pages).toEqual([
                 { content: 'F', id: 1, part: 1 },
@@ -157,66 +138,57 @@ describe('book', () => {
             expect(titles).toEqual([{ content: 'T', id: 2, page: 20 }]);
         });
 
-        it('should only patch the page and not the title', async () => {
-            await createAslTables('patch', true, false);
+        it('should only patch the page and not the title', () => {
+            createAslTables('patch', true, false);
 
-            await otherClient.executeMultiple(
-                [insertUnsafely(Tables.Page, { id: 1 }), insertUnsafely(Tables.Title, { content: 'T', id: 2 })].join(
-                    ';',
-                ),
-            );
+            otherClient.transaction((t) => {
+                [
+                    insertUnsafely(Tables.Page, { id: 1 }),
+                    insertUnsafely(Tables.Title, { content: 'T', id: 2 }),
+                    insertUnsafely('patch.page', { content: 'F', id: 1, page: '#', part: '1' }),
+                ].forEach((statement) => t.run(statement));
+            });
 
-            await otherClient.executeMultiple(
-                [insertUnsafely('patch.page', { content: 'F', id: 1, page: '#', part: '1' })].join(';'),
-            );
+            applyPatches(client, aslPath, patchPath);
 
-            await applyPatches(client, aslPath, patchPath);
-
-            const { pages, titles } = await getData(client);
+            const { pages, titles } = getData(client);
 
             expect(pages).toEqual([{ content: 'F', id: 1, part: 1 }]);
-            expect(titles).toEqual([{ content: 'T', id: 2, page: null }]);
+            expect(titles).toMatchObject([{ content: 'T', id: 2, page: null }]);
         });
 
-        it('should only patch the title and not the page', async () => {
-            await createAslTables('patch', false, true);
+        it('should only patch the title and not the page', () => {
+            createAslTables('patch', false, true);
 
-            await otherClient.executeMultiple(
+            otherClient.transaction((t) => {
                 [
                     insertUnsafely(Tables.Page, { content: 'C', id: 1 }),
                     insertUnsafely(Tables.Title, { id: 2, page: 1 }),
-                ].join(';'),
-            );
+                    insertUnsafely('patch.title', { content: 'T', id: 2 }),
+                ].forEach((statement) => t.run(statement));
+            });
 
-            await otherClient.executeMultiple([insertUnsafely('patch.title', { content: 'T', id: 2 })].join(';'));
+            applyPatches(client, aslPath, patchPath);
 
-            await applyPatches(client, aslPath, patchPath);
-
-            const { pages, titles } = await getData(client);
+            const { pages, titles } = getData(client);
 
             expect(pages).toEqual([{ content: 'C', id: 1 }]);
             expect(titles).toEqual([{ content: 'T', id: 2, page: 1 }]);
         });
 
-        it('should handle case where is_deleted does not exist on the asl', async () => {
-            await otherClient.executeMultiple([`DROP TABLE main.title`, `DROP TABLE main.page`].join(';'));
-            await otherClient.executeMultiple(
+        it('should handle case where is_deleted does not exist on the asl', () => {
+            otherClient.transaction((t) => {
                 [
-                    `CREATE TABLE main.page (id INTEGER PRIMARY KEY, content TEXT, part TEXT, page TEXT, number TEXT, services TEXT)`,
-                    `CREATE TABLE main.title (id INTEGER PRIMARY KEY, content TEXT, page INTEGER, parent INTEGER)`,
-                ].join(';'),
-            );
-
-            await otherClient.executeMultiple(
-                [
+                    `DROP TABLE main.title`,
+                    `DROP TABLE main.page`,
                     `INSERT INTO main.page (id,content) VALUES (1, 'C')`,
                     `INSERT INTO main.title (id,content,page) VALUES (2, 'T',1)`,
-                ].join(';'),
-            );
+                ].forEach((statement) => t.run(statement));
+            });
 
-            await applyPatches(client, aslPath, patchPath);
+            applyPatches(client, aslPath, patchPath);
 
-            const { pages, titles } = await getData(client);
+            const { pages, titles } = getData(client);
 
             expect(pages).toEqual([{ content: 'C', id: 1 }]);
             expect(titles).toEqual([{ content: 'T', id: 2, page: 1 }]);
