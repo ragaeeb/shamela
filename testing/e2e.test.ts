@@ -1,13 +1,22 @@
-import { Client, createClient } from '@libsql/client';
+import { Database } from 'bun:sqlite';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { downloadBook, downloadMasterDatabase, getBook } from '../src/api';
+import { downloadBook, downloadMasterDatabase, getBook, getCoverUrl } from '../src/api';
 import { createTempDir } from '../src/utils/io';
+import { setLogger } from '../src/utils/logger';
 
 describe('e2e', () => {
-    let outputDir;
+    let outputDir: string;
+
+    beforeAll(() => {
+        setLogger(console);
+    });
+
+    afterAll(() => {
+        setLogger();
+    });
 
     beforeEach(async () => {
         outputDir = await createTempDir('shamela_e2e');
@@ -24,20 +33,20 @@ describe('e2e', () => {
             const result = await downloadMasterDatabase({ outputFile: { path: dbPath } });
             expect(result).toEqual(dbPath);
 
-            const client: Client = createClient({
-                url: `file:${dbPath}`,
-            });
+            const client = new Database(dbPath);
 
             try {
-                const {
-                    rows: [{ authors, books, categories }],
-                } = await client.execute(
-                    'SELECT (SELECT COUNT(*) FROM authors) AS authors, (SELECT COUNT(*) FROM books) AS books, (SELECT COUNT(*) FROM categories) AS categories',
-                );
+                const row = client
+                    .query(
+                        'SELECT (SELECT COUNT(*) FROM authors) AS authors, (SELECT COUNT(*) FROM books) AS books, (SELECT COUNT(*) FROM categories) AS categories',
+                    )
+                    .get();
 
-                expect((authors as number) > 3000).toBe(true);
-                expect((books as number) > 8000).toBe(true);
-                expect((categories as number) > 30).toBe(true);
+                const { authors, books, categories } = row as { authors: number; books: number; categories: number };
+
+                expect(authors > 3000).toBe(true);
+                expect(books > 8000).toBe(true);
+                expect(categories > 30).toBe(true);
             } finally {
                 client.close();
             }
@@ -64,19 +73,17 @@ describe('e2e', () => {
             const result = await downloadBook(26592, { outputFile: { path: dbPath } });
             expect(result).toEqual(dbPath);
 
-            const client: Client = createClient({
-                url: `file:${dbPath}`,
-            });
+            const client = new Database(dbPath);
 
             try {
-                const {
-                    rows: [{ pages, titles }],
-                } = await client.execute(
-                    'SELECT (SELECT COUNT(*) FROM page) AS pages, (SELECT COUNT(*) FROM title) AS titles',
-                );
+                const row = client
+                    .query('SELECT (SELECT COUNT(*) FROM page) AS pages, (SELECT COUNT(*) FROM title) AS titles')
+                    .get();
 
-                expect((pages as number) > 90).toBe(true);
-                expect((titles as number) > 0).toBe(true);
+                const { pages, titles } = row as { pages: number; titles: number };
+
+                expect(pages > 90).toBe(true);
+                expect(titles > 0).toBe(true);
             } finally {
                 client.close();
             }
@@ -128,5 +135,12 @@ describe('e2e', () => {
             expect(pages.length > 10).toBe(true);
             expect(titles.length > 5).toBe(true);
         }, 20000);
+    });
+
+    describe('getCoverUrl', () => {
+        it('should get the cover url', () => {
+            const pattern = new RegExp('https://[a-z.]+/covers/33.jpg', 'g');
+            expect(getCoverUrl(33)).toMatch(pattern);
+        });
     });
 });

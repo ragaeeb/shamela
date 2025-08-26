@@ -1,17 +1,21 @@
-import process from 'node:process';
-import pino, { Logger } from 'pino';
-import pretty, { PrettyOptions } from 'pino-pretty';
+type LogFunction = (...args: unknown[]) => void;
 
-const stream = pretty({
-    colorize: true,
-} as PrettyOptions);
+interface Logger {
+    debug: LogFunction;
+    error: LogFunction;
+    info: LogFunction;
+    warn?: LogFunction;
+}
 
-const logger: Logger = pino(
-    {
-        base: { hostname: undefined, pid: undefined }, // This will remove pid and hostname but keep time
-        level: process.env.LOG_LEVEL || 'info',
-    },
-    stream,
-);
+const SILENT_LOGGER = { debug: () => {}, error: () => {}, info: () => {}, warn: () => {} };
+let logger: Logger = SILENT_LOGGER;
 
-export default logger;
+export const setLogger = (newLogger: Logger = SILENT_LOGGER) => {
+    if (!newLogger.debug || !newLogger.error || !newLogger.info) {
+        throw new Error('Logger must implement debug, error, and info methods');
+    }
+
+    logger = newLogger;
+};
+
+export { logger as default };

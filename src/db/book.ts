@@ -1,8 +1,8 @@
-import { Client } from '@libsql/client';
+import { Database } from 'bun:sqlite';
 
 import { BookData, Page, Title } from '../types';
 import logger from '../utils/logger';
-import { getInternalTables, InternalTable, selectAllRows } from './common';
+import { getInternalTables, InternalTable } from './common';
 import { attachDB, buildPagePatchQuery, buildTitlePatchQuery, detachDB } from './queryBuilder';
 import { PageRow, Tables, TitleRow } from './types';
 
@@ -43,93 +43,179 @@ const buildCopyStatements = (
     return statements;
 };
 
-export const applyPatches = async (db: Client, aslDB: string, patchDB: string) => {
-    await Promise.all([db.execute(attachDB(aslDB, ASL_DB_ALIAS)), db.execute(attachDB(patchDB, PATCH_DB_ALIAS))]);
+/**
+ * Applies patches from a patch database to the main book database.
+ *
+ * This function handles the process of applying updates and patches to book data
+ * by attaching both the original ASL database and patch database, then merging
+ * the data while excluding deleted records and applying updates from patches.
+ *
+ * @param db - The database client instance for the main database
+ * @param aslDB - Path to the original ASL database file
+ * @param patchDB - Path to the patch database file containing updates
+ *
+ * @throws {Error} When database operations fail or tables cannot be attached
+ *
+ * @example
+ * ```typescript
+ * const client = new Database(dbPath);
+ * applyPatches(client, './original.db', './patch.db');
+ * ```
+ */
+export const applyPatches = (db: Database, aslDB: string, patchDB: string) => {
+    db.run(attachDB(aslDB, ASL_DB_ALIAS));
+    db.run(attachDB(patchDB, PATCH_DB_ALIAS));
 
-    const [patchTables, aslTables] = await Promise.all([
-        getInternalTables(db, PATCH_DB_ALIAS),
-        getInternalTables(db, ASL_DB_ALIAS),
-    ]);
-
-    logger.debug({ aslTables, patchTables }, `Applying patches for...`);
-
-    await db.batch([
-        ...buildCopyStatements(
+    try {
+        const patchTables = getInternalTables(db, PATCH_DB_ALIAS);
+        const aslTables = getInternalTables(db, ASL_DB_ALIAS);
+        logger.debug({ aslTables, patchTables }, `Applying patches for...`);
+        const pageStatements = buildCopyStatements(
             patchTables,
             aslTables,
             Tables.Page,
             ['id', 'content', 'part', 'page', 'number'],
             buildPagePatchQuery(PATCH_DB_ALIAS, Tables.Page),
-        ),
-        ...buildCopyStatements(
+        );
+        const titleStatements = buildCopyStatements(
             patchTables,
             aslTables,
             Tables.Title,
             ['id', 'content', 'page', 'parent'],
             buildTitlePatchQuery(PATCH_DB_ALIAS, Tables.Title),
-        ),
-    ]);
-
-    return db.batch([detachDB(ASL_DB_ALIAS), detachDB(PATCH_DB_ALIAS)]);
+        );
+        // Prepare all statements
+        const allStatements = [...pageStatements, ...titleStatements].map((sql) => db.prepare(sql));
+        // Execute all in one transaction
+        db.transaction(() => {
+            allStatements.forEach((stmt) => stmt.run());
+        })();
+    } finally {
+        db.run(detachDB(ASL_DB_ALIAS));
+        db.run(detachDB(PATCH_DB_ALIAS));
+    }
 };
 
-export const copyTableData = async (db: Client, aslDB: string) => {
-    await db.execute(attachDB(aslDB, ASL_DB_ALIAS));
-    const tables = await getInternalTables(db, ASL_DB_ALIAS);
+/**
+ * Copies table data from an ASL database to the main database.
+ *
+ * This function is used when no patches are available and data needs to be
+ * copied directly from the original ASL database to the main database.
+ * It handles both page and title data.
+ *
+ * @param db - The database client instance for the main database
+ * @param aslDB - Path to the ASL database file to copy data from
+ *
+ * @throws {Error} When database operations fail or the ASL database cannot be attached
+ */
+export const copyTableData = (db: Database, aslDB: string) => {
+    db.run(attachDB(aslDB, ASL_DB_ALIAS));
+    const tables = getInternalTables(db, ASL_DB_ALIAS);
 
     logger.debug({ tables }, `copyTableData...`);
 
-    await db.batch([
+    const titleInsert = db.prepare(
         `INSERT INTO main.${Tables.Title} SELECT id,content,page,parent FROM ${ASL_DB_ALIAS}.${Tables.Title}`,
+    );
+    const pageInsert = db.prepare(
         `INSERT INTO main.${Tables.Page} SELECT id,content,part,page,number FROM ${ASL_DB_ALIAS}.${Tables.Page}`,
-    ]);
+    );
 
-    return db.execute(detachDB(ASL_DB_ALIAS));
+    db.transaction(() => {
+        titleInsert.run();
+        pageInsert.run();
+    })();
+
+    db.run(detachDB(ASL_DB_ALIAS));
 };
 
-export const createTables = async (db: Client) => {
-    return db.batch([
-        `CREATE TABLE page (id INTEGER PRIMARY KEY, content TEXT, part INTEGER, page INTEGER, number INTEGER)`,
-        `CREATE TABLE title (id INTEGER PRIMARY KEY, content TEXT, page INTEGER, parent INTEGER)`,
-    ]);
+/**
+ * Creates the necessary database tables for storing book data.
+ *
+ * This function sets up the schema for the book database by creating
+ * the 'page' and 'title' tables with their respective columns and constraints.
+ *
+ * @param db - The database client instance where tables should be created
+ *
+ * @throws {Error} When table creation fails due to database constraints or permissions
+ */
+export const createTables = (db: Database) => {
+    db.run(`CREATE TABLE page (id INTEGER PRIMARY KEY, content TEXT, part INTEGER, page INTEGER, number INTEGER)`);
+    db.run(`CREATE TABLE title (id INTEGER PRIMARY KEY, content TEXT, page INTEGER, parent INTEGER)`);
 };
 
-export const getAllPages = async (db: Client): Promise<Page[]> => {
-    const rows = await selectAllRows(db, Tables.Page);
+/**
+ * Retrieves all pages from the book database.
+ *
+ * This function queries the database for all page records and transforms
+ * them into a structured format, filtering out null values and organizing
+ * the data according to the Page type interface.
+ *
+ * @param db - The database client instance to query
+ * @returns An array of Page objects
+ *
+ * @throws {Error} When database query fails or data transformation encounters issues
+ */
+export const getAllPages = (db: Database) => {
+    const pages: Page[] = db
+        .query(`SELECT * FROM ${Tables.Page}`)
+        .all()
+        .map((row: any) => {
+            const { content, id, number, page, part } = row as PageRow;
 
-    const pages: Page[] = rows.map((row: any) => {
-        const { content, id, number, page, part } = row as PageRow;
-
-        return {
-            content,
-            id,
-            ...(page && { page }),
-            ...(number && { number }),
-            ...(part && { part }),
-        };
-    });
+            return {
+                content,
+                id,
+                ...(page && { page }),
+                ...(number && { number }),
+                ...(part && { part }),
+            };
+        });
 
     return pages;
 };
 
-export const getAllTitles = async (db: Client): Promise<Title[]> => {
-    const rows = await selectAllRows(db, Tables.Title);
+/**
+ * Retrieves all titles from the book database.
+ *
+ * This function queries the database for all title records and transforms
+ * them into a structured format. Titles represent the hierarchical structure
+ * and table of contents for the book.
+ *
+ * @param db - The database client instance to query
+ * @returns An array of Title objects
+ *
+ * @throws {Error} When database query fails or data transformation encounters issues
+ */
+export const getAllTitles = (db: Database) => {
+    const titles: Title[] = db
+        .query(`SELECT * FROM ${Tables.Title}`)
+        .all()
+        .map((row: any) => {
+            const r = row as TitleRow;
 
-    const titles: Title[] = rows.map((row: any) => {
-        const r = row as TitleRow;
-
-        return {
-            content: r.content,
-            id: r.id,
-            page: r.page,
-            ...(r.parent && { number: r.parent }),
-        };
-    });
+            return {
+                content: r.content,
+                id: r.id,
+                page: r.page,
+                ...(r.parent && { parent: r.parent }),
+            };
+        });
 
     return titles;
 };
 
-export const getData = async (db: Client): Promise<BookData> => {
-    const [pages, titles] = await Promise.all([getAllPages(db), getAllTitles(db)]);
-    return { pages, titles };
+/**
+ * Retrieves complete book data including both pages and titles.
+ *
+ * This function combines the results from getAllPages and getAllTitles
+ * to provide a complete representation of the book's content and structure.
+ * This is typically the final step in processing book data.
+ *
+ * @param db - The database client instance to query
+ *
+ * @throws {Error} When database queries fail or data processing encounters issues
+ */
+export const getData = (db: Database): BookData => {
+    return { pages: getAllPages(db), titles: getAllTitles(db) };
 };

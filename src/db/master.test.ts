@@ -1,16 +1,21 @@
-import { Client, createClient } from '@libsql/client';
-import { promises as fs } from 'fs';
-import path from 'path';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { Database } from 'bun:sqlite';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 
 import { UNKNOWN_VALUE_PLACEHOLDER } from '../utils/constants';
 import { createTempDir } from '../utils/io';
+import { setLogger } from '../utils/logger';
 import { copyForeignMasterTableData, createTables, getData } from './master';
 import { attachDB, insertUnsafely } from './queryBuilder';
 
+const runStatements = (db: Database, statements: string[]) => {
+    db.transaction(() => statements.forEach((sql) => db.run(sql)))();
+};
+
 describe('master', () => {
-    let client: Client;
-    let otherClient: Client;
+    let client: Database;
+    let otherClient: Database;
     let dbPath: string;
     let authorPath: string;
     let bookPath: string;
@@ -23,33 +28,28 @@ describe('master', () => {
         bookPath = path.join(dbFolder, 'book.sqlite');
         categoryPath = path.join(dbFolder, 'category.sqlite');
         authorPath = path.join(dbFolder, 'author.sqlite');
+        setLogger(console);
     });
 
     afterAll(async () => {
+        setLogger();
         await fs.rm(dbFolder, { recursive: true });
     });
 
-    beforeEach(async () => {
-        client = createClient({
-            url: `file:${dbPath}`,
-        });
+    beforeEach(() => {
+        client = new Database(dbPath);
+        otherClient = new Database(bookPath);
 
-        otherClient = createClient({
-            url: `file:${bookPath}`,
-        });
+        otherClient.run(attachDB(categoryPath, 'categories'));
+        otherClient.run(attachDB(authorPath, 'authors'));
 
-        await Promise.all([
-            otherClient.executeMultiple(
-                [
-                    attachDB(categoryPath, 'categories'),
-                    attachDB(authorPath, 'authors'),
-                    `CREATE TABLE authors.author (id INTEGER, is_deleted TEXT, name TEXT,biography TEXT, death_text TEXT, death_number TEXT)`,
-                    `CREATE TABLE main.book (id INTEGER, name TEXT, is_deleted TEXT, category TEXT, type TEXT, date TEXT, author TEXT, printed TEXT, minor_release TEXT, major_release TEXT, bibliography TEXT, hint TEXT, pdf_links TEXT, metadata TEXT)`,
-                    `CREATE TABLE categories.category (id INTEGER, is_deleted TEXT, "order" TEXT, name TEXT)`,
-                ].join(';'),
-            ),
-            createTables(client),
+        runStatements(otherClient, [
+            `CREATE TABLE authors.author (id INTEGER, is_deleted TEXT, name TEXT,biography TEXT, death_text TEXT, death_number TEXT)`,
+            `CREATE TABLE main.book (id INTEGER, name TEXT, is_deleted TEXT, category TEXT, type TEXT, date TEXT, author TEXT, printed TEXT, minor_release TEXT, major_release TEXT, bibliography TEXT, hint TEXT, pdf_links TEXT, metadata TEXT)`,
+            `CREATE TABLE categories.category (id INTEGER, is_deleted TEXT, "order" TEXT, name TEXT)`,
         ]);
+
+        createTables(client);
     });
 
     afterEach(async () => {
@@ -65,48 +65,46 @@ describe('master', () => {
     });
 
     describe('copyForeignMasterTableData', () => {
-        it('should build the database from the original source tables', async () => {
-            await otherClient.executeMultiple(
-                [
-                    insertUnsafely('authors.author', {
-                        biography: 'Bio',
-                        death_number: '99',
-                        death_text: '99',
-                        id: 1,
-                        name: 'Ahmad',
-                    }),
-                    insertUnsafely('main.book', {
-                        author: '513',
-                        bibliography: 'biblio',
-                        category: '1',
-                        date: '1225',
-                        hint: 'h',
-                        id: 1,
-                        major_release: '5',
-                        metadata: '{"date":"08121431"}',
-                        minor_release: '0',
-                        name: 'B',
-                        pdf_links: `{"alias": 22, "cover": 1, "cover_alias": 20, "root": "https://archive.org/download/tazkerat_samee/", "files": ["16966p.pdf", "16966.pdf|0"], "size": 7328419}`,
-                        printed: '1',
-                        type: '1',
-                    }),
-                    insertUnsafely('main.book', {
-                        author: '50',
-                        id: 2,
-                        metadata: '{"date":"08121431"}',
-                        name: 'B',
-                    }),
-                    insertUnsafely('categories.category', { '`order`': '1', id: 1, name: 'Fiqh' }),
-                ].join(';'),
-            );
+        it('should build the database from the original source tables', () => {
+            runStatements(otherClient, [
+                insertUnsafely('authors.author', {
+                    biography: 'Bio',
+                    death_number: '99',
+                    death_text: '99',
+                    id: 1,
+                    name: 'Ahmad',
+                }),
+                insertUnsafely('main.book', {
+                    author: '513',
+                    bibliography: 'biblio',
+                    category: '1',
+                    date: '1225',
+                    hint: 'h',
+                    id: 1,
+                    major_release: '5',
+                    metadata: '{"date":"08121431"}',
+                    minor_release: '0',
+                    name: 'B',
+                    pdf_links: `{"alias": 22, "cover": 1, "cover_alias": 20, "root": "https://archive.org/download/tazkerat_samee/", "files": ["16966p.pdf", "16966.pdf|0"], "size": 7328419}`,
+                    printed: '1',
+                    type: '1',
+                }),
+                insertUnsafely('main.book', {
+                    author: '50',
+                    id: 2,
+                    metadata: '{"date":"08121431"}',
+                    name: 'B',
+                }),
+                insertUnsafely('categories.category', { '`order`': '1', id: 1, name: 'Fiqh' }),
+            ]);
 
-            await copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
+            copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
 
-            const { authors, books, categories } = await getData(client);
+            const { authors, books, categories } = getData(client);
 
             expect(authors).toEqual([{ biography: 'Bio', death: 99, id: 1, name: 'Ahmad' }]);
 
-            expect(books).toEqual([
+            expect(books).toMatchObject([
                 {
                     author: 513,
                     bibliography: 'biblio',
@@ -144,54 +142,38 @@ describe('master', () => {
             expect(categories).toEqual([{ id: 1, name: 'Fiqh' }]);
         });
 
-        it('should not include deleted records', async () => {
-            await otherClient.executeMultiple(
-                [
-                    insertUnsafely(
-                        'authors.author',
-                        {
-                            id: 1,
-                        },
-                        true,
-                    ),
-                    insertUnsafely(
-                        'main.book',
-                        {
-                            id: 1,
-                        },
-                        true,
-                    ),
-                    insertUnsafely('categories.category', { id: 1 }, true),
-                ].join(';'),
-            );
+        it('should not include deleted records', () => {
+            runStatements(otherClient, [
+                insertUnsafely('authors.author', { id: 1 }, true),
+                insertUnsafely('main.book', { id: 1 }, true),
+                insertUnsafely('categories.category', { id: 1 }, true),
+            ]);
 
-            await copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
+            copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
 
-            const { authors, books, categories } = await getData(client);
+            const { authors, books, categories } = getData(client);
 
             expect(authors).toHaveLength(0);
             expect(books).toHaveLength(0);
             expect(categories).toHaveLength(0);
         });
 
-        it('should omit placeholders for unknown dates', async () => {
-            await otherClient.executeMultiple(
-                [
-                    insertUnsafely('authors.author', {
-                        death_number: UNKNOWN_VALUE_PLACEHOLDER,
-                        id: 1,
-                    }),
-                    insertUnsafely('main.book', {
-                        author: '1',
-                        date: UNKNOWN_VALUE_PLACEHOLDER,
-                        id: 1,
-                    }),
-                ].join(';'),
-            );
+        it('should omit placeholders for unknown dates', () => {
+            runStatements(otherClient, [
+                insertUnsafely('authors.author', {
+                    death_number: UNKNOWN_VALUE_PLACEHOLDER,
+                    id: 1,
+                }),
+                insertUnsafely('main.book', {
+                    author: '1',
+                    date: UNKNOWN_VALUE_PLACEHOLDER,
+                    id: 1,
+                }),
+            ]);
 
-            await copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
+            copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
 
-            const { authors, books } = await getData(client);
+            const { authors, books } = getData(client);
 
             expect(authors[0].death).toBeUndefined();
             expect(books[0].date).toBeUndefined();
