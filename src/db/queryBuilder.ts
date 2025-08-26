@@ -1,7 +1,28 @@
 const MAIN_DB_ALIAS = 'main';
 
-export const attachDB = (dbFile: string, alias: string) => `ATTACH DATABASE '${dbFile}' AS ${alias}`;
+/**
+ * Generates SQL to attach a database file with an alias.
+ * @param {string} dbFile - Path to the database file to attach
+ * @param {string} alias - Alias name for the attached database
+ * @returns {string} SQL ATTACH DATABASE statement
+ */
+export const attachDB = (dbFile: string, alias: string) => {
+    // Escape single quotes in the file path
+    const escapedPath = dbFile.replace(/'/g, "''");
+    // Validate alias contains only alphanumeric characters and underscores
+    if (!/^[a-zA-Z0-9_]+$/.test(alias)) {
+        throw new Error('Invalid database alias');
+    }
+    return `ATTACH DATABASE '${escapedPath}' AS ${alias}`;
+};
 
+/**
+ * Builds a SQL query to patch page data from one database to another.
+ * @param {string} patchAlias - Alias of the patch database
+ * @param {string} tableName - Name of the table to update
+ * @param {string} [aslAlias='main'] - Alias of the main database
+ * @returns {string} SQL UPDATE statement for patching page data
+ */
 export const buildPagePatchQuery = (
     patchAlias: string,
     tableName: string,
@@ -28,6 +49,13 @@ const updateTitleColumn = (columnName: string, aslAlias: string, patchAlias: str
     WHERE ${aslAlias}.title.id = ${patchAlias}.title.id)
 `;
 
+/**
+ * Builds a SQL query to patch title data from one database to another.
+ * @param {string} patchAlias - Alias of the patch database
+ * @param {string} tableName - Name of the table to update
+ * @param {string} [aslAlias='main'] - Alias of the main database
+ * @returns {string} SQL UPDATE statement for patching title data
+ */
 export const buildTitlePatchQuery = (
     patchAlias: string,
     tableName: string,
@@ -44,12 +72,40 @@ export const buildTitlePatchQuery = (
   );
 `;
 
-export const createTable = (name: string, fields: string[]): string =>
-    `CREATE TABLE IF NOT EXISTS ${name} (${fields.join(', ')})`;
+/**
+ * Generates SQL to create a table with specified fields.
+ * @param {string} name - Name of the table to create
+ * @param {string[]} fields - Array of field definitions
+ * @returns {string} SQL CREATE TABLE statement
+ */
+export const createTable = (name: string, fields: string[]) => {
+    // Validate table name
+    if (!/^[a-zA-Z0-9_]+$/.test(name)) {
+        throw new Error('Invalid table name');
+    }
+    // Basic validation for field definitions
+    fields.forEach((field) => {
+        if (field.includes(';') || field.includes('--')) {
+            throw new Error('Invalid field definition');
+        }
+    });
+    return `CREATE TABLE IF NOT EXISTS ${name} (${fields.join(', ')})`;
+};
 
-export const detachDB = (alias: string) => `DETACH DATABASE ${alias}`;
+/**
+ * Generates SQL to detach a database by alias.
+ * @param {string} alias - Alias of the database to detach
+ * @returns {string} SQL DETACH DATABASE statement
+ */
+export const detachDB = (alias: string) => {
+    // Validate alias contains only alphanumeric characters and underscores
+    if (!/^[a-zA-Z0-9_]+$/.test(alias)) {
+        throw new Error('Invalid database alias');
+    }
+    return `DETACH DATABASE ${alias}`;
+};
 
-const updatePageColumn = (columnName: string, aslAlias: string, patchAlias: string): string => `
+const updatePageColumn = (columnName: string, aslAlias: string, patchAlias: string) => `
   (SELECT CASE 
              WHEN ${patchAlias}.page.${columnName} != '#' THEN ${patchAlias}.page.${columnName}
              ELSE ${aslAlias}.page.${columnName}
@@ -58,7 +114,15 @@ const updatePageColumn = (columnName: string, aslAlias: string, patchAlias: stri
     WHERE ${aslAlias}.page.id = ${patchAlias}.page.id)
 `;
 
-export const insertUnsafely = (table: string, fieldToValue: Record<string, any>, isDeleted = false): string => {
+/**
+ * Generates an unsafe SQL INSERT statement with provided field values.
+ * @param {string} table - Name of the table to insert into
+ * @param {Record<string, any>} fieldToValue - Object mapping field names to values
+ * @param {boolean} [isDeleted=false] - Whether to mark the record as deleted
+ * @returns {string} SQL INSERT statement (unsafe - does not escape values properly)
+ * @warning This function does not properly escape SQL values and should not be used with untrusted input
+ */
+export const insertUnsafely = (table: string, fieldToValue: Record<string, any>, isDeleted = false) => {
     const combinedRecords: Record<string, any> = { ...fieldToValue, is_deleted: isDeleted ? '1' : '0' };
 
     const sortedKeys = Object.keys(combinedRecords).sort();
