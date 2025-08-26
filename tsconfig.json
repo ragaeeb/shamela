@@ -12,6 +12,8 @@
         "isolatedModules": true,
         "outDir": "./dist",
         "rootDir": "./src",
+        "baseUrl": ".",
+        "types": ["bun-types"],
         "paths": {
             "@/*": ["./src/*"]
         }

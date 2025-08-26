@@ -78,7 +78,7 @@ export const getBookMetadata = async (
             ...(response.minor_release_url && { minorRelease: response.minor_release }),
         };
     } catch (error: any) {
-        throw new Error(`Error fetching master patch: ${error.message}`);
+        throw new Error(`Error fetching book metadata: ${error.message}`);
     }
 };
 
@@ -138,7 +138,7 @@ export const downloadBook = async (id: number, options: DownloadBookOptions): Pr
 
         if (extension === '.json') {
             const result = await getBookData(client);
-            await fs.writeFile(options.outputFile.path, JSON.stringify(result, undefined, 2), 'utf8');
+            await Bun.file(options.outputFile.path).write(JSON.stringify(result, null, 2));
         }
 
         client.close();
@@ -205,8 +205,8 @@ export const getMasterMetadata = async (version: number = 0): Promise<GetMasterM
  * ```
  */
 export const getCoverUrl = (bookId: number) => {
-    const { host } = new URL(process.env.SHAMELA_API_MASTER_PATCH_ENDPOINT!);
-    return `${host}/covers/${bookId}.jpg`;
+    const { origin } = new URL(process.env.SHAMELA_API_MASTER_PATCH_ENDPOINT!);
+    return `${origin}/covers/${bookId}.jpg`;
 };
 
 /**

@@ -59,44 +59,41 @@ const buildCopyStatements = (
  * @example
  * ```typescript
  * const client = new Database(dbPath);
- * await applyPatches(client, './original.db', './patch.db');
+ * applyPatches(client, './original.db', './patch.db');
  * ```
  */
 export const applyPatches = (db: Database, aslDB: string, patchDB: string) => {
     db.run(attachDB(aslDB, ASL_DB_ALIAS));
     db.run(attachDB(patchDB, PATCH_DB_ALIAS));
 
-    const patchTables = getInternalTables(db, PATCH_DB_ALIAS);
-    const aslTables = getInternalTables(db, ASL_DB_ALIAS);
-
-    logger.debug({ aslTables, patchTables }, `Applying patches for...`);
-
-    const pageStatements = buildCopyStatements(
-        patchTables,
-        aslTables,
-        Tables.Page,
-        ['id', 'content', 'part', 'page', 'number'],
-        buildPagePatchQuery(PATCH_DB_ALIAS, Tables.Page),
-    );
-
-    const titleStatements = buildCopyStatements(
-        patchTables,
-        aslTables,
-        Tables.Title,
-        ['id', 'content', 'page', 'parent'],
-        buildTitlePatchQuery(PATCH_DB_ALIAS, Tables.Title),
-    );
-
-    // Prepare all statements
-    const allStatements = [...pageStatements, ...titleStatements].map((sql) => db.prepare(sql));
-
-    // Execute all in one transaction
-    db.transaction(() => {
-        allStatements.forEach((stmt) => stmt.run());
-    })();
-
-    db.run(detachDB(ASL_DB_ALIAS));
-    db.run(detachDB(PATCH_DB_ALIAS));
+    try {
+        const patchTables = getInternalTables(db, PATCH_DB_ALIAS);
+        const aslTables = getInternalTables(db, ASL_DB_ALIAS);
+        logger.debug({ aslTables, patchTables }, `Applying patches for...`);
+        const pageStatements = buildCopyStatements(
+            patchTables,
+            aslTables,
+            Tables.Page,
+            ['id', 'content', 'part', 'page', 'number'],
+            buildPagePatchQuery(PATCH_DB_ALIAS, Tables.Page),
+        );
+        const titleStatements = buildCopyStatements(
+            patchTables,
+            aslTables,
+            Tables.Title,
+            ['id', 'content', 'page', 'parent'],
+            buildTitlePatchQuery(PATCH_DB_ALIAS, Tables.Title),
+        );
+        // Prepare all statements
+        const allStatements = [...pageStatements, ...titleStatements].map((sql) => db.prepare(sql));
+        // Execute all in one transaction
+        db.transaction(() => {
+            allStatements.forEach((stmt) => stmt.run());
+        })();
+    } finally {
+        db.run(detachDB(ASL_DB_ALIAS));
+        db.run(detachDB(PATCH_DB_ALIAS));
+    }
 };
 
 /**
@@ -201,7 +198,7 @@ export const getAllTitles = (db: Database) => {
                 content: r.content,
                 id: r.id,
                 page: r.page,
-                ...(r.parent && { number: r.parent }),
+                ...(r.parent && { parent: r.parent }),
             };
         });
 

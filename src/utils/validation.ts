@@ -8,14 +8,14 @@ const SOURCE_TABLES = ['author.sqlite', 'book.sqlite', 'category.sqlite'];
  * @throws {Error} When any required environment variable is missing
  */
 export const validateEnvVariables = () => {
-    const envVariableNotFound = [
+    const envVariablesNotFound = [
         'SHAMELA_API_MASTER_PATCH_ENDPOINT',
         'SHAMELA_API_BOOKS_ENDPOINT',
         'SHAMELA_API_KEY',
-    ].find((key) => !process.env[key]);
+    ].filter((key) => !process.env[key]);
 
-    if (envVariableNotFound) {
-        throw new Error(`${envVariableNotFound} environment variable not set`);
+    if (envVariablesNotFound.length) {
+        throw new Error(`${envVariablesNotFound.join(', ')} environment variables not set`);
     }
 };
 
@@ -25,6 +25,6 @@ export const validateEnvVariables = () => {
  * @returns {boolean} True if all required source tables (author.sqlite, book.sqlite, category.sqlite) are present
  */
 export const validateMasterSourceTables = (sourceTablePaths: string[]) => {
-    const sourceTableNames = sourceTablePaths.map((tablePath) => path.parse(tablePath).base);
-    return SOURCE_TABLES.every((table) => sourceTableNames.includes(table));
+    const sourceTableNames = new Set(sourceTablePaths.map((tablePath) => path.basename(tablePath).toLowerCase()));
+    return SOURCE_TABLES.every((table) => sourceTableNames.has(table.toLowerCase()));
 };

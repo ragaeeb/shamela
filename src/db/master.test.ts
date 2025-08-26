@@ -32,6 +32,7 @@ describe('master', () => {
     });
 
     afterAll(async () => {
+        setLogger();
         await fs.rm(dbFolder, { recursive: true });
     });
 

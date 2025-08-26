@@ -1,17 +1,21 @@
 import { Database } from 'bun:sqlite';
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { promises as fs } from 'fs';
 import path from 'path';
 
-import { downloadBook, downloadMasterDatabase, getBook } from '../src/api';
+import { downloadBook, downloadMasterDatabase, getBook, getCoverUrl } from '../src/api';
 import { createTempDir } from '../src/utils/io';
 import { setLogger } from '../src/utils/logger';
 
 describe('e2e', () => {
-    let outputDir;
+    let outputDir: string;
 
     beforeAll(() => {
         setLogger(console);
+    });
+
+    afterAll(() => {
+        setLogger();
     });
 
     beforeEach(async () => {
@@ -131,5 +135,12 @@ describe('e2e', () => {
             expect(pages.length > 10).toBe(true);
             expect(titles.length > 5).toBe(true);
         }, 20000);
+    });
+
+    describe('getCoverUrl', () => {
+        it('should get the cover url', () => {
+            const pattern = new RegExp('https://[a-z.]+/covers/33.jpg', 'g');
+            expect(getCoverUrl(33)).toMatch(pattern);
+        });
     });
 });

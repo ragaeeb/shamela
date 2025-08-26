@@ -21,7 +21,7 @@ export const createTempDir = async (prefix = 'shamela') => {
  * @param {string} path - The file path to check
  * @returns {Promise<boolean>} A promise that resolves to true if the file exists, false otherwise
  */
-export const fileExists = async (path: string) => !!(await fs.stat(path).catch(() => false));
+export const fileExists = async (filePath: string) => !!(await fs.stat(filePath).catch(() => false));
 
 /**
  * Downloads and extracts a ZIP file from a given URL without loading the entire file into memory.

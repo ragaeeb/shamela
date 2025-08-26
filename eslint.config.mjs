@@ -15,7 +15,7 @@ export default tseslint.config(
             sourceType: 'module',
         },
     },
-    { ignores: ['dist', 'coverage'] },
+    { ignores: ['**/dist', '**/coverage', '**/out', '**/build'] },
     eslintConfigPrettier,
     {
         rules: {

@@ -44,6 +44,7 @@ describe('book', () => {
     });
 
     afterAll(async () => {
+        setLogger();
         await fs.rm(dbFolder, { recursive: true });
     });
 
@@ -87,7 +88,7 @@ describe('book', () => {
                 { content: 'P3 #4 2/3', id: 3, number: 4, page: 3, part: 2 },
             ]);
 
-            expect(titles).toEqual([{ content: 'T1', id: 1, page: 1, parent: null }] as any);
+            expect(titles).toEqual([{ content: 'T1', id: 1, page: 1, parent: null }]);
         });
     });
 

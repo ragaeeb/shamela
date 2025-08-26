@@ -44,7 +44,7 @@ export const copyForeignMasterTableData = (db: Database, sourceTables: string[])
         insertCategories.run();
     })();
 
-    Object.keys(aliasToPath).forEach((statement) => detachDB(statement));
+    Object.keys(aliasToPath).forEach((statement) => db.run(detachDB(statement)));
 };
 
 /**

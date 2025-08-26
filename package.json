@@ -9,6 +9,7 @@
     "private": false,
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
+    "default": "./dist/index.js",
     "source": "src/index.ts",
     "type": "module",
     "engines": {
@@ -21,6 +22,7 @@
         "e2e": "bun test e2e --env-file .env",
         "e2e:ci": "bun test e2e"
     },
+    "sideEffects": false,
     "exports": {
         ".": {
             "import": "./dist/index.js",
