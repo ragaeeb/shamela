@@ -9,6 +9,10 @@ import { setLogger } from '../utils/logger';
 import { copyForeignMasterTableData, createTables, getData } from './master';
 import { attachDB, insertUnsafely } from './queryBuilder';
 
+const runStatements = (db: Database, statements: string[]) => {
+    db.transaction(() => statements.forEach((sql) => db.run(sql)))();
+};
+
 describe('master', () => {
     let client: Database;
     let otherClient: Database;
@@ -38,13 +42,11 @@ describe('master', () => {
         otherClient.run(attachDB(categoryPath, 'categories'));
         otherClient.run(attachDB(authorPath, 'authors'));
 
-        [
+        runStatements(otherClient, [
             `CREATE TABLE authors.author (id INTEGER, is_deleted TEXT, name TEXT,biography TEXT, death_text TEXT, death_number TEXT)`,
             `CREATE TABLE main.book (id INTEGER, name TEXT, is_deleted TEXT, category TEXT, type TEXT, date TEXT, author TEXT, printed TEXT, minor_release TEXT, major_release TEXT, bibliography TEXT, hint TEXT, pdf_links TEXT, metadata TEXT)`,
             `CREATE TABLE categories.category (id INTEGER, is_deleted TEXT, "order" TEXT, name TEXT)`,
-        ].forEach((statement) => {
-            otherClient.run(statement);
-        });
+        ]);
 
         createTables(client);
     });
@@ -62,42 +64,38 @@ describe('master', () => {
     });
 
     describe('copyForeignMasterTableData', () => {
-        it.only('should build the database from the original source tables', () => {
-            otherClient.transaction((t) => {
-                [
-                    insertUnsafely('authors.author', {
-                        biography: 'Bio',
-                        death_number: '99',
-                        death_text: '99',
-                        id: 1,
-                        name: 'Ahmad',
-                    }),
-                    insertUnsafely('main.book', {
-                        author: '513',
-                        bibliography: 'biblio',
-                        category: '1',
-                        date: '1225',
-                        hint: 'h',
-                        id: 1,
-                        major_release: '5',
-                        metadata: '{"date":"08121431"}',
-                        minor_release: '0',
-                        name: 'B',
-                        pdf_links: `{"alias": 22, "cover": 1, "cover_alias": 20, "root": "https://archive.org/download/tazkerat_samee/", "files": ["16966p.pdf", "16966.pdf|0"], "size": 7328419}`,
-                        printed: '1',
-                        type: '1',
-                    }),
-                    insertUnsafely('main.book', {
-                        author: '50',
-                        id: 2,
-                        metadata: '{"date":"08121431"}',
-                        name: 'B',
-                    }),
-                    insertUnsafely('categories.category', { '`order`': '1', id: 1, name: 'Fiqh' }),
-                ].forEach((statement) => {
-                    t.run(statement);
-                });
-            });
+        it('should build the database from the original source tables', () => {
+            runStatements(otherClient, [
+                insertUnsafely('authors.author', {
+                    biography: 'Bio',
+                    death_number: '99',
+                    death_text: '99',
+                    id: 1,
+                    name: 'Ahmad',
+                }),
+                insertUnsafely('main.book', {
+                    author: '513',
+                    bibliography: 'biblio',
+                    category: '1',
+                    date: '1225',
+                    hint: 'h',
+                    id: 1,
+                    major_release: '5',
+                    metadata: '{"date":"08121431"}',
+                    minor_release: '0',
+                    name: 'B',
+                    pdf_links: `{"alias": 22, "cover": 1, "cover_alias": 20, "root": "https://archive.org/download/tazkerat_samee/", "files": ["16966p.pdf", "16966.pdf|0"], "size": 7328419}`,
+                    printed: '1',
+                    type: '1',
+                }),
+                insertUnsafely('main.book', {
+                    author: '50',
+                    id: 2,
+                    metadata: '{"date":"08121431"}',
+                    name: 'B',
+                }),
+                insertUnsafely('categories.category', { '`order`': '1', id: 1, name: 'Fiqh' }),
+            ]);
 
             copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
 
@@ -144,27 +142,11 @@ describe('master', () => {
         });
 
         it('should not include deleted records', () => {
-            otherClient.transaction((t) => {
-                [
-                    insertUnsafely(
-                        'authors.author',
-                        {
-                            id: 1,
-                        },
-                        true,
-                    ),
-                    insertUnsafely(
-                        'main.book',
-                        {
-                            id: 1,
-                        },
-                        true,
-                    ),
-                    insertUnsafely('categories.category', { id: 1 }, true),
-                ].forEach((statement) => {
-                    t.run(statement);
-                });
-            });
+            runStatements(otherClient, [
+                insertUnsafely('authors.author', { id: 1 }, true),
+                insertUnsafely('main.book', { id: 1 }, true),
+                insertUnsafely('categories.category', { id: 1 }, true),
+            ]);
 
             copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
 
@@ -176,21 +158,17 @@ describe('master', () => {
         });
 
         it('should omit placeholders for unknown dates', () => {
-            otherClient.transaction((t) => {
-                [
-                    insertUnsafely('authors.author', {
-                        death_number: UNKNOWN_VALUE_PLACEHOLDER,
-                        id: 1,
-                    }),
-                    insertUnsafely('main.book', {
-                        author: '1',
-                        date: UNKNOWN_VALUE_PLACEHOLDER,
-                        id: 1,
-                    }),
-                ].forEach((statement) => {
-                    t.run(statement);
-                });
-            });
+            runStatements(otherClient, [
+                insertUnsafely('authors.author', {
+                    death_number: UNKNOWN_VALUE_PLACEHOLDER,
+                    id: 1,
+                }),
+                insertUnsafely('main.book', {
+                    author: '1',
+                    date: UNKNOWN_VALUE_PLACEHOLDER,
+                    id: 1,
+                }),
+            ]);
 
             copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
 

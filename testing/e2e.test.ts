@@ -32,15 +32,17 @@ describe('e2e', () => {
             const client = new Database(dbPath);
 
             try {
-                const {
-                    rows: [{ authors, books, categories }],
-                } = await client.execute(
-                    'SELECT (SELECT COUNT(*) FROM authors) AS authors, (SELECT COUNT(*) FROM books) AS books, (SELECT COUNT(*) FROM categories) AS categories',
-                );
+                const row = client
+                    .query(
+                        'SELECT (SELECT COUNT(*) FROM authors) AS authors, (SELECT COUNT(*) FROM books) AS books, (SELECT COUNT(*) FROM categories) AS categories',
+                    )
+                    .get();
 
-                expect((authors as number) > 3000).toBe(true);
-                expect((books as number) > 8000).toBe(true);
-                expect((categories as number) > 30).toBe(true);
+                const { authors, books, categories } = row as { authors: number; books: number; categories: number };
+
+                expect(authors > 3000).toBe(true);
+                expect(books > 8000).toBe(true);
+                expect(categories > 30).toBe(true);
             } finally {
                 client.close();
             }
@@ -70,14 +72,14 @@ describe('e2e', () => {
             const client = new Database(dbPath);
 
             try {
-                const {
-                    rows: [{ pages, titles }],
-                } = await client.execute(
-                    'SELECT (SELECT COUNT(*) FROM page) AS pages, (SELECT COUNT(*) FROM title) AS titles',
-                );
+                const row = client
+                    .query('SELECT (SELECT COUNT(*) FROM page) AS pages, (SELECT COUNT(*) FROM title) AS titles')
+                    .get();
 
-                expect((pages as number) > 90).toBe(true);
-                expect((titles as number) > 0).toBe(true);
+                const { pages, titles } = row as { pages: number; titles: number };
+
+                expect(pages > 90).toBe(true);
+                expect(titles > 0).toBe(true);
             } finally {
                 client.close();
             }

@@ -54,7 +54,7 @@
         "prettier": "^3.6.2",
         "semantic-release": "^24.2.7",
         "tsup": "^8.5.0",
-        "typescript-eslint": "^8.40.0"
+        "typescript-eslint": "^8.41.0"
     },
     "dependencies": {
         "unzipper": "^0.12.3"

@@ -71,27 +71,29 @@ export const applyPatches = (db: Database, aslDB: string, patchDB: string) => {
 
     logger.debug({ aslTables, patchTables }, `Applying patches for...`);
 
-    db.transaction((t) => {
-        t.run(
-            buildCopyStatements(
-                patchTables,
-                aslTables,
-                Tables.Page,
-                ['id', 'content', 'part', 'page', 'number'],
-                buildPagePatchQuery(PATCH_DB_ALIAS, Tables.Page),
-            ),
-        );
+    const pageStatements = buildCopyStatements(
+        patchTables,
+        aslTables,
+        Tables.Page,
+        ['id', 'content', 'part', 'page', 'number'],
+        buildPagePatchQuery(PATCH_DB_ALIAS, Tables.Page),
+    );
 
-        t.run(
-            buildCopyStatements(
-                patchTables,
-                aslTables,
-                Tables.Title,
-                ['id', 'content', 'page', 'parent'],
-                buildTitlePatchQuery(PATCH_DB_ALIAS, Tables.Title),
-            ),
-        );
-    });
+    const titleStatements = buildCopyStatements(
+        patchTables,
+        aslTables,
+        Tables.Title,
+        ['id', 'content', 'page', 'parent'],
+        buildTitlePatchQuery(PATCH_DB_ALIAS, Tables.Title),
+    );
+
+    // Prepare all statements
+    const allStatements = [...pageStatements, ...titleStatements].map((sql) => db.prepare(sql));
+
+    // Execute all in one transaction
+    db.transaction(() => {
+        allStatements.forEach((stmt) => stmt.run());
+    })();
 
     db.run(detachDB(ASL_DB_ALIAS));
     db.run(detachDB(PATCH_DB_ALIAS));
@@ -115,10 +117,17 @@ export const copyTableData = (db: Database, aslDB: string) => {
 
     logger.debug({ tables }, `copyTableData...`);
 
-    db.transaction((t) => {
-        t.run(`INSERT INTO main.${Tables.Title} SELECT id,content,page,parent FROM ${ASL_DB_ALIAS}.${Tables.Title}`);
-        t.run(`INSERT INTO main.${Tables.Page} SELECT id,content,part,page,number FROM ${ASL_DB_ALIAS}.${Tables.Page}`);
-    });
+    const titleInsert = db.prepare(
+        `INSERT INTO main.${Tables.Title} SELECT id,content,page,parent FROM ${ASL_DB_ALIAS}.${Tables.Title}`,
+    );
+    const pageInsert = db.prepare(
+        `INSERT INTO main.${Tables.Page} SELECT id,content,part,page,number FROM ${ASL_DB_ALIAS}.${Tables.Page}`,
+    );
+
+    db.transaction(() => {
+        titleInsert.run();
+        pageInsert.run();
+    })();
 
     db.run(detachDB(ASL_DB_ALIAS));
 };

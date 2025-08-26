@@ -9,6 +9,10 @@ import { applyPatches, copyTableData, createTables, getData } from './book';
 import { attachDB, insertUnsafely } from './queryBuilder';
 import { Tables } from './types';
 
+const runStatements = (db: Database, statements: string[]) => {
+    db.transaction(() => statements.forEach((sql) => db.run(sql)))();
+};
+
 describe('book', () => {
     let client: Database;
     let otherClient: Database;
@@ -45,7 +49,7 @@ describe('book', () => {
 
     beforeEach(() => {
         client = new Database(dbPath);
-        otherClient = new Database(dbPath);
+        otherClient = new Database(aslPath);
 
         otherClient.run(attachDB(patchPath, 'patch'));
         createAslTables();
@@ -65,14 +69,12 @@ describe('book', () => {
 
     describe('copyTableData', () => {
         it('should only copy the relevant pages and titles', () => {
-            otherClient.transaction((t) => {
-                [
-                    insertUnsafely(Tables.Page, { content: `P1 #2 1/1`, id: 1, number: 2, page: 1 }),
-                    insertUnsafely(Tables.Page, { content: `P2 #3 1/2`, id: 2, number: 3, page: 2, part: 1 }),
-                    insertUnsafely(Tables.Page, { content: `P3 #4 2/3`, id: 3, number: 4, page: 3, part: 2 }),
-                    insertUnsafely(Tables.Title, { content: `T1`, id: 1, page: 1 }),
-                ].forEach((statement) => t.run(statement));
-            });
+            runStatements(otherClient, [
+                insertUnsafely(Tables.Page, { content: `P1 #2 1/1`, id: 1, number: 2, page: 1 }),
+                insertUnsafely(Tables.Page, { content: `P2 #3 1/2`, id: 2, number: 3, page: 2, part: 1 }),
+                insertUnsafely(Tables.Page, { content: `P3 #4 2/3`, id: 3, number: 4, page: 3, part: 2 }),
+                insertUnsafely(Tables.Title, { content: `T1`, id: 1, page: 1 }),
+            ]);
 
             copyTableData(client, aslPath);
 
@@ -93,14 +95,12 @@ describe('book', () => {
         it('should not include pages and titles that were deleted', () => {
             createAslTables('patch');
 
-            otherClient.transaction((t) => {
-                [
-                    insertUnsafely(Tables.Page, { id: 1 }),
-                    insertUnsafely(Tables.Title, { id: 2 }),
-                    insertUnsafely('patch.page', { id: 1 }, true),
-                    insertUnsafely('patch.title', { id: 2 }, true),
-                ].forEach((statement) => t.run(statement));
-            });
+            runStatements(otherClient, [
+                insertUnsafely(Tables.Page, { id: 1 }),
+                insertUnsafely(Tables.Title, { id: 2 }),
+                insertUnsafely('patch.page', { id: 1 }, true),
+                insertUnsafely('patch.title', { id: 2 }, true),
+            ]);
 
             applyPatches(client, aslPath, patchPath);
 
@@ -113,18 +113,16 @@ describe('book', () => {
         it('should patch the page and title fields', () => {
             createAslTables('patch');
 
-            otherClient.transaction((t) => {
-                [
-                    insertUnsafely(Tables.Page, { id: 1 }),
-                    insertUnsafely(Tables.Page, { content: '2X', id: 2, number: '4', part: '1' }),
-                    insertUnsafely(Tables.Page, { content: '', id: 3 }),
-                    insertUnsafely(Tables.Title, { id: 2, page: 9 }),
-                    insertUnsafely('patch.page', { content: 'F', id: 1, page: '#', part: '1' }),
-                    insertUnsafely('patch.page', { content: '3X', id: 2, number: '#', part: '2' }),
-                    insertUnsafely('patch.page', { content: '#', id: 3, number: '#', part: '#' }),
-                    insertUnsafely('patch.title', { content: 'T', id: 2, page: 20 }),
-                ].forEach((statement) => t.run(statement));
-            });
+            runStatements(otherClient, [
+                insertUnsafely(Tables.Page, { id: 1 }),
+                insertUnsafely(Tables.Page, { content: '2X', id: 2, number: '4', part: '1' }),
+                insertUnsafely(Tables.Page, { content: '', id: 3 }),
+                insertUnsafely(Tables.Title, { id: 2, page: 9 }),
+                insertUnsafely('patch.page', { content: 'F', id: 1, page: '#', part: '1' }),
+                insertUnsafely('patch.page', { content: '3X', id: 2, number: '#', part: '2' }),
+                insertUnsafely('patch.page', { content: '#', id: 3, number: '#', part: '#' }),
+                insertUnsafely('patch.title', { content: 'T', id: 2, page: 20 }),
+            ]);
 
             applyPatches(client, aslPath, patchPath);
 
@@ -141,13 +139,11 @@ describe('book', () => {
         it('should only patch the page and not the title', () => {
             createAslTables('patch', true, false);
 
-            otherClient.transaction((t) => {
-                [
-                    insertUnsafely(Tables.Page, { id: 1 }),
-                    insertUnsafely(Tables.Title, { content: 'T', id: 2 }),
-                    insertUnsafely('patch.page', { content: 'F', id: 1, page: '#', part: '1' }),
-                ].forEach((statement) => t.run(statement));
-            });
+            runStatements(otherClient, [
+                insertUnsafely(Tables.Page, { id: 1 }),
+                insertUnsafely(Tables.Title, { content: 'T', id: 2 }),
+                insertUnsafely('patch.page', { content: 'F', id: 1, page: '#', part: '1' }),
+            ]);
 
             applyPatches(client, aslPath, patchPath);
 
@@ -160,13 +156,11 @@ describe('book', () => {
         it('should only patch the title and not the page', () => {
             createAslTables('patch', false, true);
 
-            otherClient.transaction((t) => {
-                [
-                    insertUnsafely(Tables.Page, { content: 'C', id: 1 }),
-                    insertUnsafely(Tables.Title, { id: 2, page: 1 }),
-                    insertUnsafely('patch.title', { content: 'T', id: 2 }),
-                ].forEach((statement) => t.run(statement));
-            });
+            runStatements(otherClient, [
+                insertUnsafely(Tables.Page, { content: 'C', id: 1 }),
+                insertUnsafely(Tables.Title, { id: 2, page: 1 }),
+                insertUnsafely('patch.title', { content: 'T', id: 2 }),
+            ]);
 
             applyPatches(client, aslPath, patchPath);
 
@@ -177,14 +171,19 @@ describe('book', () => {
         });
 
         it('should handle case where is_deleted does not exist on the asl', () => {
-            otherClient.transaction((t) => {
-                [
-                    `DROP TABLE main.title`,
-                    `DROP TABLE main.page`,
-                    `INSERT INTO main.page (id,content) VALUES (1, 'C')`,
-                    `INSERT INTO main.title (id,content,page) VALUES (2, 'T',1)`,
-                ].forEach((statement) => t.run(statement));
-            });
+            otherClient.run(`DROP TABLE main.title`);
+            otherClient.run(`DROP TABLE main.page`);
+            otherClient.run(
+                `CREATE TABLE main.page (id INTEGER PRIMARY KEY, content TEXT, part TEXT, page TEXT, number TEXT, services TEXT)`,
+            );
+            otherClient.run(
+                `CREATE TABLE main.title (id INTEGER PRIMARY KEY, content TEXT, page INTEGER, parent INTEGER)`,
+            );
+
+            runStatements(otherClient, [
+                `INSERT INTO main.page (id,content) VALUES (1, 'C')`,
+                `INSERT INTO main.title (id,content,page) VALUES (2, 'T',1)`,
+            ]);
 
             applyPatches(client, aslPath, patchPath);
 

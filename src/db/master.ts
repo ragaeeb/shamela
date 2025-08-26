@@ -28,15 +28,21 @@ export const copyForeignMasterTableData = (db: Database, sourceTables: string[])
 
     Object.entries(aliasToPath).forEach(([alias, dbPath]) => db.run(attachDB(dbPath, alias)));
 
-    db.transaction((t) => {
-        t.run(
-            `INSERT INTO ${Tables.Authors} SELECT id,name,biography,(CASE WHEN death_number = ${UNKNOWN_VALUE_PLACEHOLDER} THEN NULL ELSE death_number END) AS death_number FROM author WHERE is_deleted='0'`,
-        );
-        t.run(
-            `INSERT INTO ${Tables.Books} SELECT id,name,category,type,(CASE WHEN date = ${UNKNOWN_VALUE_PLACEHOLDER} THEN NULL ELSE date END) AS date,author,printed,major_release,minor_release,bibliography,hint,pdf_links,metadata FROM book WHERE is_deleted='0'`,
-        );
-        t.run(`INSERT INTO ${Tables.Categories} SELECT id,name FROM category WHERE is_deleted='0'`);
-    });
+    const insertAuthors = db.prepare(
+        `INSERT INTO ${Tables.Authors} SELECT id,name,biography,(CASE WHEN death_number = ${UNKNOWN_VALUE_PLACEHOLDER} THEN NULL ELSE death_number END) AS death_number FROM author WHERE is_deleted='0'`,
+    );
+    const insertBooks = db.prepare(
+        `INSERT INTO ${Tables.Books} SELECT id,name,category,type,(CASE WHEN date = ${UNKNOWN_VALUE_PLACEHOLDER} THEN NULL ELSE date END) AS date,author,printed,major_release,minor_release,bibliography,hint,pdf_links,metadata FROM book WHERE is_deleted='0'`,
+    );
+    const insertCategories = db.prepare(
+        `INSERT INTO ${Tables.Categories} SELECT id,name FROM category WHERE is_deleted='0'`,
+    );
+
+    db.transaction(() => {
+        insertAuthors.run();
+        insertBooks.run();
+        insertCategories.run();
+    })();
 
     Object.keys(aliasToPath).forEach((statement) => detachDB(statement));
 };
