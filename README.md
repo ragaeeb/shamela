@@ -371,27 +371,35 @@ The library provides comprehensive TypeScript types for all data structures:
 
 ### BookData
 
-- `pages`: Array of page objects with content, ID, and optional page numbers
-- `titles`: Optional array of title/chapter objects with hierarchical structure
+- `pages`: Array of raw rows from the `page` table, including `content`, `id`, `part`, `page`, `number`, `services`, and `is_deleted`.
+- `titles`: Array of raw rows from the `title` table with `content`, `id`, `page`, `parent`, and `is_deleted`.
 
 ### MasterData
 
-- `authors`: Array of author objects with biographical information
-- `books`: Array of book objects with metadata, categories, and version information
-- `categories`: Array of category objects for classification
+- `authors`: Raw entries from the `author` table with the original `biography`, `death_text`, `death_number`, `is_deleted`, and `name` fields.
+- `books`: Raw entries from the `book` table containing the original metadata columns (`author`, `bibliography`, `category`, `date`, `hint`, `major_release`, `metadata`, `minor_release`, `pdf_links`, `printed`, `type`, and `is_deleted`).
+- `categories`: Raw entries from the `category` table including `is_deleted`, `order`, and `name`.
 
 ### Page
 
-- `id`: Unique identifier
-- `content`: Text content of the page
-- `number`, `page`, `part`: Optional numerical references
+- `id`: Unique identifier.
+- `content`: Text content of the page.
+- `part`, `page`, `number`: Numeric references stored exactly as they appear in the source database.
+- `services`: Optional metadata column from the source database.
+- `is_deleted`: Flag indicating whether the page has been marked as deleted in Shamela updates.
 
 ### Title
 
-- `id`: Unique identifier
-- `content`: Title text
-- `page`: Page number where title appears
-- `parent`: Optional parent title ID for hierarchical structure
+- `id`: Unique identifier.
+- `content`: Title text.
+- `page`: Page number where title appears (if available).
+- `parent`: Optional parent title ID for hierarchical structure.
+- `is_deleted`: Flag indicating whether the title has been marked as deleted.
+
+### Content helpers
+
+- `parseContentRobust(content: string)`: Converts Shamela page HTML into a list of structured lines while preserving title markers and punctuation.
+- `sanitizePageContent(content: string)`: Removes common footnote markers and normalises ligatures from Shamela pages.
 
 ## Testing
 

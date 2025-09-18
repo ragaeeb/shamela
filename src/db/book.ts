@@ -1,221 +1,241 @@
 import { Database } from 'bun:sqlite';
 
-import { BookData, Page, Title } from '../types';
+import type { BookData, Page, Title } from '../types';
 import logger from '../utils/logger';
-import { getInternalTables, InternalTable } from './common';
-import { attachDB, buildPagePatchQuery, buildTitlePatchQuery, detachDB } from './queryBuilder';
-import { PageRow, Tables, TitleRow } from './types';
+import { Tables } from './types';
 
-const PATCH_DB_ALIAS = 'patch';
-const ASL_DB_ALIAS = 'asl';
+type Row = Record<string, any>;
 
-const buildCopyStatements = (
-    patchTables: InternalTable[],
-    aslTables: InternalTable[],
-    table: Tables,
-    fields: string[],
-    patchQuery: string,
-): string[] => {
-    const statements = [];
+const PATCH_NOOP_VALUE = '#';
 
-    if (patchTables.find((t) => t.name === table)) {
-        statements.push(
-            `INSERT INTO main.${table} 
-             SELECT ${fields.join(',')} 
-             FROM ${ASL_DB_ALIAS}.${table} 
-             WHERE id NOT IN (
-                 SELECT id 
-                 FROM ${PATCH_DB_ALIAS}.${table} 
-                 WHERE is_deleted='1'
-             )`,
-        );
-        statements.push(patchQuery);
-    } else {
-        let copyStatement = `INSERT INTO main.${table} SELECT ${fields.join(',')} FROM ${ASL_DB_ALIAS}.${table}`;
+const getTableInfo = (db: Database, table: Tables) => {
+    return db.query(`PRAGMA table_info(${table})`).all() as { name: string; type: string }[];
+};
 
-        if (aslTables.find((t) => t.name === table)?.fields.includes('is_deleted')) {
-            copyStatement += ` WHERE is_deleted='0'`;
+const hasTable = (db: Database, table: Tables): boolean => {
+    const result = db
+        .query(`SELECT name FROM sqlite_master WHERE type='table' AND name = ?1`)
+        .get(table) as { name: string } | undefined;
+    return Boolean(result);
+};
+
+const readRows = (db: Database, table: Tables): Row[] => {
+    if (!hasTable(db, table)) {
+        return [];
+    }
+
+    return db.query(`SELECT * FROM ${table}`).all() as Row[];
+};
+
+const isDeleted = (row: Row): boolean => {
+    if (!('is_deleted' in row)) {
+        return false;
+    }
+
+    const value = row.is_deleted;
+    if (value === null || value === undefined) {
+        return false;
+    }
+
+    return String(value) === '1';
+};
+
+const mergeRowValues = (baseRow: Row | undefined, patchRow: Row | undefined, columns: string[]): Row => {
+    const merged: Row = {};
+
+    for (const column of columns) {
+        if (column === 'id') {
+            merged.id = (patchRow ?? baseRow)?.id ?? null;
+            continue;
         }
 
-        statements.push(copyStatement);
+        if (patchRow && Object.prototype.hasOwnProperty.call(patchRow, column)) {
+            const value = patchRow[column];
+
+            if (value !== PATCH_NOOP_VALUE && value !== null && value !== undefined) {
+                merged[column] = value;
+                continue;
+            }
+        }
+
+        if (baseRow && Object.prototype.hasOwnProperty.call(baseRow, column)) {
+            merged[column] = baseRow[column];
+            continue;
+        }
+
+        merged[column] = null;
     }
 
-    return statements;
+    return merged;
 };
 
-/**
- * Applies patches from a patch database to the main book database.
- *
- * This function handles the process of applying updates and patches to book data
- * by attaching both the original ASL database and patch database, then merging
- * the data while excluding deleted records and applying updates from patches.
- *
- * @param db - The database client instance for the main database
- * @param aslDB - Path to the original ASL database file
- * @param patchDB - Path to the patch database file containing updates
- *
- * @throws {Error} When database operations fail or tables cannot be attached
- *
- * @example
- * ```typescript
- * const client = new Database(dbPath);
- * applyPatches(client, './original.db', './patch.db');
- * ```
- */
+const mergeRows = (baseRows: Row[], patchRows: Row[], columns: string[]): Row[] => {
+    const baseIds = new Set<string>();
+    const patchById = new Map<string, Row>();
+
+    for (const row of baseRows) {
+        baseIds.add(String(row.id));
+    }
+
+    for (const row of patchRows) {
+        patchById.set(String(row.id), row);
+    }
+
+    const merged: Row[] = [];
+
+    for (const baseRow of baseRows) {
+        const patchRow = patchById.get(String(baseRow.id));
+
+        if (patchRow && isDeleted(patchRow)) {
+            continue;
+        }
+
+        merged.push(mergeRowValues(baseRow, patchRow, columns));
+    }
+
+    for (const row of patchRows) {
+        const id = String(row.id);
+
+        if (baseIds.has(id) || isDeleted(row)) {
+            continue;
+        }
+
+        merged.push(mergeRowValues(undefined, row, columns));
+    }
+
+    return merged;
+};
+
+const insertRows = (db: Database, table: Tables, columns: string[], rows: Row[]) => {
+    if (rows.length === 0) {
+        return;
+    }
+
+    const placeholders = columns.map(() => '?').join(',');
+    const statement = db.prepare(
+        `INSERT INTO ${table} (${columns.join(',')}) VALUES (${placeholders})`,
+    );
+
+    rows.forEach((row) => {
+        const values = columns.map((column) =>
+            Object.prototype.hasOwnProperty.call(row, column) ? row[column] : null,
+        );
+        statement.run(values);
+    });
+
+    statement.finalize();
+};
+
+const ensureTableSchema = (target: Database, source: Database, table: Tables) => {
+    const row = source
+        .query(`SELECT sql FROM sqlite_master WHERE type='table' AND name = ?1`)
+        .get(table) as { sql: string } | undefined;
+
+    if (!row?.sql) {
+        logger.warn(`${table} table definition missing in source database`);
+        return false;
+    }
+
+    target.run(`DROP TABLE IF EXISTS ${table}`);
+    target.run(row.sql);
+    return true;
+};
+
+const copyAndPatchTable = (
+    target: Database,
+    source: Database,
+    patch: Database | null,
+    table: Tables,
+) => {
+    if (!hasTable(source, table)) {
+        logger.warn(`${table} table missing in source database`);
+        return;
+    }
+
+    if (!ensureTableSchema(target, source, table)) {
+        return;
+    }
+
+    const baseInfo = getTableInfo(source, table);
+    const patchInfo = patch && hasTable(patch, table) ? getTableInfo(patch, table) : [];
+
+    const columns = baseInfo.map((info) => info.name);
+
+    for (const info of patchInfo) {
+        if (!columns.includes(info.name)) {
+            const columnType = info.type && info.type.length > 0 ? info.type : 'TEXT';
+            target.run(`ALTER TABLE ${table} ADD COLUMN ${info.name} ${columnType}`);
+            columns.push(info.name);
+        }
+    }
+
+    const baseRows = readRows(source, table);
+    const patchRows = patch ? readRows(patch, table) : [];
+
+    const mergedRows = mergeRows(baseRows, patchRows, columns);
+
+    insertRows(target, table, columns, mergedRows);
+};
+
 export const applyPatches = (db: Database, aslDB: string, patchDB: string) => {
-    db.run(attachDB(aslDB, ASL_DB_ALIAS));
-    db.run(attachDB(patchDB, PATCH_DB_ALIAS));
+    const source = new Database(aslDB);
+    const patch = new Database(patchDB);
 
     try {
-        const patchTables = getInternalTables(db, PATCH_DB_ALIAS);
-        const aslTables = getInternalTables(db, ASL_DB_ALIAS);
-        logger.debug({ aslTables, patchTables }, `Applying patches for...`);
-        const pageStatements = buildCopyStatements(
-            patchTables,
-            aslTables,
-            Tables.Page,
-            ['id', 'content', 'part', 'page', 'number'],
-            buildPagePatchQuery(PATCH_DB_ALIAS, Tables.Page),
-        );
-        const titleStatements = buildCopyStatements(
-            patchTables,
-            aslTables,
-            Tables.Title,
-            ['id', 'content', 'page', 'parent'],
-            buildTitlePatchQuery(PATCH_DB_ALIAS, Tables.Title),
-        );
-        // Prepare all statements
-        const allStatements = [...pageStatements, ...titleStatements].map((sql) => db.prepare(sql));
-        // Execute all in one transaction
         db.transaction(() => {
-            allStatements.forEach((stmt) => stmt.run());
+            copyAndPatchTable(db, source, patch, Tables.Page);
+            copyAndPatchTable(db, source, patch, Tables.Title);
         })();
     } finally {
-        db.run(detachDB(ASL_DB_ALIAS));
-        db.run(detachDB(PATCH_DB_ALIAS));
+        source.close();
+        patch.close();
     }
 };
 
-/**
- * Copies table data from an ASL database to the main database.
- *
- * This function is used when no patches are available and data needs to be
- * copied directly from the original ASL database to the main database.
- * It handles both page and title data.
- *
- * @param db - The database client instance for the main database
- * @param aslDB - Path to the ASL database file to copy data from
- *
- * @throws {Error} When database operations fail or the ASL database cannot be attached
- */
 export const copyTableData = (db: Database, aslDB: string) => {
-    db.run(attachDB(aslDB, ASL_DB_ALIAS));
-    const tables = getInternalTables(db, ASL_DB_ALIAS);
+    const source = new Database(aslDB);
 
-    logger.debug({ tables }, `copyTableData...`);
-
-    const titleInsert = db.prepare(
-        `INSERT INTO main.${Tables.Title} SELECT id,content,page,parent FROM ${ASL_DB_ALIAS}.${Tables.Title}`,
-    );
-    const pageInsert = db.prepare(
-        `INSERT INTO main.${Tables.Page} SELECT id,content,part,page,number FROM ${ASL_DB_ALIAS}.${Tables.Page}`,
-    );
-
-    db.transaction(() => {
-        titleInsert.run();
-        pageInsert.run();
-    })();
-
-    db.run(detachDB(ASL_DB_ALIAS));
+    try {
+        db.transaction(() => {
+            copyAndPatchTable(db, source, null, Tables.Page);
+            copyAndPatchTable(db, source, null, Tables.Title);
+        })();
+    } finally {
+        source.close();
+    }
 };
 
-/**
- * Creates the necessary database tables for storing book data.
- *
- * This function sets up the schema for the book database by creating
- * the 'page' and 'title' tables with their respective columns and constraints.
- *
- * @param db - The database client instance where tables should be created
- *
- * @throws {Error} When table creation fails due to database constraints or permissions
- */
 export const createTables = (db: Database) => {
-    db.run(`CREATE TABLE page (id INTEGER PRIMARY KEY, content TEXT, part INTEGER, page INTEGER, number INTEGER)`);
-    db.run(`CREATE TABLE title (id INTEGER PRIMARY KEY, content TEXT, page INTEGER, parent INTEGER)`);
+    db.run(
+        `CREATE TABLE ${Tables.Page} (
+            id INTEGER,
+            content TEXT,
+            part TEXT,
+            page TEXT,
+            number TEXT,
+            services TEXT,
+            is_deleted TEXT
+        )`,
+    );
+    db.run(
+        `CREATE TABLE ${Tables.Title} (
+            id INTEGER,
+            content TEXT,
+            page INTEGER,
+            parent INTEGER,
+            is_deleted TEXT
+        )`,
+    );
 };
 
-/**
- * Retrieves all pages from the book database.
- *
- * This function queries the database for all page records and transforms
- * them into a structured format, filtering out null values and organizing
- * the data according to the Page type interface.
- *
- * @param db - The database client instance to query
- * @returns An array of Page objects
- *
- * @throws {Error} When database query fails or data transformation encounters issues
- */
 export const getAllPages = (db: Database) => {
-    const pages: Page[] = db
-        .query(`SELECT * FROM ${Tables.Page}`)
-        .all()
-        .map((row: any) => {
-            const { content, id, number, page, part } = row as PageRow;
-
-            return {
-                content,
-                id,
-                ...(page && { page }),
-                ...(number && { number }),
-                ...(part && { part }),
-            };
-        });
-
-    return pages;
+    return db.query(`SELECT * FROM ${Tables.Page}`).all() as Page[];
 };
 
-/**
- * Retrieves all titles from the book database.
- *
- * This function queries the database for all title records and transforms
- * them into a structured format. Titles represent the hierarchical structure
- * and table of contents for the book.
- *
- * @param db - The database client instance to query
- * @returns An array of Title objects
- *
- * @throws {Error} When database query fails or data transformation encounters issues
- */
 export const getAllTitles = (db: Database) => {
-    const titles: Title[] = db
-        .query(`SELECT * FROM ${Tables.Title}`)
-        .all()
-        .map((row: any) => {
-            const r = row as TitleRow;
-
-            return {
-                content: r.content,
-                id: r.id,
-                page: r.page,
-                ...(r.parent && { parent: r.parent }),
-            };
-        });
-
-    return titles;
+    return db.query(`SELECT * FROM ${Tables.Title}`).all() as Title[];
 };
 
-/**
- * Retrieves complete book data including both pages and titles.
- *
- * This function combines the results from getAllPages and getAllTitles
- * to provide a complete representation of the book's content and structure.
- * This is typically the final step in processing book data.
- *
- * @param db - The database client instance to query
- *
- * @throws {Error} When database queries fail or data processing encounters issues
- */
 export const getData = (db: Database): BookData => {
     return { pages: getAllPages(db), titles: getAllTitles(db) };
 };

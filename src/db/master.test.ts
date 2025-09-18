@@ -3,7 +3,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
-import { UNKNOWN_VALUE_PLACEHOLDER } from '../utils/constants';
 import { createTempDir } from '../utils/io';
 import { setLogger } from '../utils/logger';
 import { copyForeignMasterTableData, createTables, getData } from './master';
@@ -102,47 +101,59 @@ describe('master', () => {
 
             const { authors, books, categories } = getData(client);
 
-            expect(authors).toEqual([{ biography: 'Bio', death: 99, id: 1, name: 'Ahmad' }]);
-
-            expect(books).toMatchObject([
+            expect(authors).toEqual([
                 {
-                    author: 513,
+                    biography: 'Bio',
+                    death_number: '99',
+                    death_text: '99',
+                    id: 1,
+                    is_deleted: '0',
+                    name: 'Ahmad',
+                },
+            ]);
+
+            expect(books).toEqual([
+                {
+                    author: '513',
                     bibliography: 'biblio',
-                    category: 1,
-                    date: 1225,
+                    category: '1',
+                    date: '1225',
                     hint: 'h',
                     id: 1,
-                    major: 5,
-                    metadata: { date: '08121431' },
+                    is_deleted: '0',
+                    major_release: '5',
+                    metadata: '{"date":"08121431"}',
+                    minor_release: '0',
                     name: 'B',
-                    pdfLinks: {
-                        alias: 22,
-                        cover: 1,
-                        cover_alias: 20,
-                        files: [{ file: '16966p.pdf' }, { file: '16966.pdf', id: '0' }],
-                        root: 'https://archive.org/download/tazkerat_samee/',
-                        size: 7328419,
-                    },
-                    printed: 1,
-                    type: 1,
+                    pdf_links:
+                        '{"alias": 22, "cover": 1, "cover_alias": 20, "root": "https://archive.org/download/tazkerat_samee/", "files": ["16966p.pdf", "16966.pdf|0"], "size": 7328419}',
+                    printed: '1',
+                    type: '1',
                 },
                 {
-                    author: 50,
+                    author: '50',
                     bibliography: null,
                     category: null,
+                    date: null,
+                    hint: null,
                     id: 2,
-                    major: null,
-                    metadata: { date: '08121431' },
+                    is_deleted: '0',
+                    major_release: null,
+                    metadata: '{"date":"08121431"}',
+                    minor_release: null,
                     name: 'B',
+                    pdf_links: null,
                     printed: null,
                     type: null,
                 },
             ]);
 
-            expect(categories).toEqual([{ id: 1, name: 'Fiqh' }]);
+            expect(categories).toEqual([
+                { id: 1, is_deleted: '0', name: 'Fiqh', order: '1' },
+            ]);
         });
 
-        it('should not include deleted records', () => {
+        it('should include rows marked as deleted', () => {
             runStatements(otherClient, [
                 insertUnsafely('authors.author', { id: 1 }, true),
                 insertUnsafely('main.book', { id: 1 }, true),
@@ -153,30 +164,46 @@ describe('master', () => {
 
             const { authors, books, categories } = getData(client);
 
-            expect(authors).toHaveLength(0);
-            expect(books).toHaveLength(0);
-            expect(categories).toHaveLength(0);
+            expect(authors).toEqual([{ biography: null, death_number: null, death_text: null, id: 1, is_deleted: '1', name: null }]);
+            expect(books).toEqual([
+                {
+                    author: null,
+                    bibliography: null,
+                    category: null,
+                    date: null,
+                    hint: null,
+                    id: 1,
+                    is_deleted: '1',
+                    major_release: null,
+                    metadata: null,
+                    minor_release: null,
+                    name: null,
+                    pdf_links: null,
+                    printed: null,
+                    type: null,
+                },
+            ]);
+            expect(categories).toEqual([
+                { id: 1, is_deleted: '1', name: null, order: null },
+            ]);
         });
 
-        it('should omit placeholders for unknown dates', () => {
+        it('should expose pluralised compatibility views', () => {
             runStatements(otherClient, [
-                insertUnsafely('authors.author', {
-                    death_number: UNKNOWN_VALUE_PLACEHOLDER,
-                    id: 1,
-                }),
-                insertUnsafely('main.book', {
-                    author: '1',
-                    date: UNKNOWN_VALUE_PLACEHOLDER,
-                    id: 1,
-                }),
+                insertUnsafely('authors.author', { id: 1 }, true),
+                insertUnsafely('main.book', { id: 1 }, true),
+                insertUnsafely('categories.category', { id: 1 }, true),
             ]);
 
             copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
 
-            const { authors, books } = getData(client);
+            const row = client
+                .query(
+                    'SELECT (SELECT COUNT(*) FROM authors) AS authors, (SELECT COUNT(*) FROM books) AS books, (SELECT COUNT(*) FROM categories) AS categories',
+                )
+                .get() as { authors: number; books: number; categories: number };
 
-            expect(authors[0].death).toBeUndefined();
-            expect(books[0].date).toBeUndefined();
+            expect(row).toEqual({ authors: 1, books: 1, categories: 1 });
         });
     });
 });

@@ -1,5 +1,3 @@
-const MAIN_DB_ALIAS = 'main';
-
 /**
  * Generates SQL to attach a database file with an alias.
  * @param {string} dbFile - Path to the database file to attach
@@ -7,70 +5,12 @@ const MAIN_DB_ALIAS = 'main';
  * @returns {string} SQL ATTACH DATABASE statement
  */
 export const attachDB = (dbFile: string, alias: string) => {
-    // Escape single quotes in the file path
     const escapedPath = dbFile.replace(/'/g, "''");
-    // Validate alias contains only alphanumeric characters and underscores
     if (!/^[a-zA-Z0-9_]+$/.test(alias)) {
         throw new Error('Invalid database alias');
     }
     return `ATTACH DATABASE '${escapedPath}' AS ${alias}`;
 };
-
-/**
- * Builds a SQL query to patch page data from one database to another.
- * @param {string} patchAlias - Alias of the patch database
- * @param {string} tableName - Name of the table to update
- * @param {string} [aslAlias='main'] - Alias of the main database
- * @returns {string} SQL UPDATE statement for patching page data
- */
-export const buildPagePatchQuery = (
-    patchAlias: string,
-    tableName: string,
-    aslAlias: string = MAIN_DB_ALIAS,
-): string => `
-  UPDATE ${aslAlias}.${tableName}
-  SET content = ${updatePageColumn('content', aslAlias, patchAlias)},
-      part = ${updatePageColumn('part', aslAlias, patchAlias)},
-      page = ${updatePageColumn('page', aslAlias, patchAlias)},
-      number = ${updatePageColumn('number', aslAlias, patchAlias)}
-  WHERE EXISTS (
-    SELECT 1
-    FROM ${patchAlias}.${tableName}
-    WHERE ${aslAlias}.${tableName}.id = ${patchAlias}.${tableName}.id
-  );
-`;
-
-const updateTitleColumn = (columnName: string, aslAlias: string, patchAlias: string) => `
-  (SELECT CASE 
-             WHEN ${patchAlias}.title.${columnName} != '#' THEN ${patchAlias}.title.${columnName}
-             ELSE ${aslAlias}.title.${columnName}
-           END 
-    FROM ${patchAlias}.title
-    WHERE ${aslAlias}.title.id = ${patchAlias}.title.id)
-`;
-
-/**
- * Builds a SQL query to patch title data from one database to another.
- * @param {string} patchAlias - Alias of the patch database
- * @param {string} tableName - Name of the table to update
- * @param {string} [aslAlias='main'] - Alias of the main database
- * @returns {string} SQL UPDATE statement for patching title data
- */
-export const buildTitlePatchQuery = (
-    patchAlias: string,
-    tableName: string,
-    aslAlias: string = MAIN_DB_ALIAS,
-): string => `
-  UPDATE ${aslAlias}.${tableName}
-  SET content = ${updateTitleColumn('content', aslAlias, patchAlias)},
-      page = ${updateTitleColumn('page', aslAlias, patchAlias)},
-      parent = ${updateTitleColumn('parent', aslAlias, patchAlias)}
-  WHERE EXISTS (
-    SELECT 1
-    FROM ${patchAlias}.${tableName}
-    WHERE ${aslAlias}.${tableName}.id = ${patchAlias}.${tableName}.id
-  );
-`;
 
 /**
  * Generates SQL to create a table with specified fields.
@@ -79,11 +19,9 @@ export const buildTitlePatchQuery = (
  * @returns {string} SQL CREATE TABLE statement
  */
 export const createTable = (name: string, fields: string[]) => {
-    // Validate table name
     if (!/^[a-zA-Z0-9_]+$/.test(name)) {
         throw new Error('Invalid table name');
     }
-    // Basic validation for field definitions
     fields.forEach((field) => {
         if (field.includes(';') || field.includes('--')) {
             throw new Error('Invalid field definition');
@@ -98,21 +36,11 @@ export const createTable = (name: string, fields: string[]) => {
  * @returns {string} SQL DETACH DATABASE statement
  */
 export const detachDB = (alias: string) => {
-    // Validate alias contains only alphanumeric characters and underscores
     if (!/^[a-zA-Z0-9_]+$/.test(alias)) {
         throw new Error('Invalid database alias');
     }
     return `DETACH DATABASE ${alias}`;
 };
-
-const updatePageColumn = (columnName: string, aslAlias: string, patchAlias: string) => `
-  (SELECT CASE 
-             WHEN ${patchAlias}.page.${columnName} != '#' THEN ${patchAlias}.page.${columnName}
-             ELSE ${aslAlias}.page.${columnName}
-           END 
-    FROM ${patchAlias}.page
-    WHERE ${aslAlias}.page.id = ${patchAlias}.page.id)
-`;
 
 /**
  * Generates an unsafe SQL INSERT statement with provided field values.
