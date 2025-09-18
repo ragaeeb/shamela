@@ -1,28 +1,22 @@
 {
-    "name": "shamela",
-    "version": "1.1.0",
-    "description": "Library to interact with the Maktabah Shamela v4 APIs",
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/ragaeeb/shamela.git"
-    },
-    "private": false,
-    "main": "dist/index.js",
-    "types": "dist/index.d.ts",
+    "author": "Ragaeeb Haq",
     "default": "./dist/index.js",
-    "source": "src/index.ts",
-    "type": "module",
+    "dependencies": {
+        "unzipper": "^0.12.3"
+    },
+    "description": "Library to interact with the Maktabah Shamela v4 APIs",
+    "devDependencies": {
+        "@biomejs/biome": "^2.2.4",
+        "@types/bun": "^1.2.22",
+        "@types/node": "^24.5.2",
+        "@types/unzipper": "^0.10.11",
+        "semantic-release": "^24.2.8",
+        "tsup": "^8.5.0"
+    },
     "engines": {
-        "bun": ">=1.2.20",
+        "bun": ">=1.2.22",
         "node": ">=22.0.0"
     },
-    "scripts": {
-        "build": "tsup",
-        "test": "bun test src/ --coverage --coverage-reporter=lcov",
-        "e2e": "bun test e2e --env-file .env",
-        "e2e:ci": "bun test e2e"
-    },
-    "sideEffects": false,
     "exports": {
         ".": {
             "import": "./dist/index.js",
@@ -38,27 +32,24 @@
         "Islamic",
         "Muslim"
     ],
-    "author": "Ragaeeb Haq",
     "license": "MIT",
-    "devDependencies": {
-        "@eslint/js": "^9.34.0",
-        "@semantic-release/changelog": "^6.0.3",
-        "@semantic-release/git": "^10.0.1",
-        "@types/bun": "^1.2.20",
-        "@types/node": "^24.3.0",
-        "@types/unzipper": "^0.10.11",
-        "dotenv-vault": "^1.27.0",
-        "eslint": "^9.34.0",
-        "eslint-config-prettier": "^10.1.8",
-        "eslint-plugin-perfectionist": "^4.15.0",
-        "eslint-plugin-prettier": "^5.5.4",
-        "globals": "^16.3.0",
-        "prettier": "^3.6.2",
-        "semantic-release": "^24.2.7",
-        "tsup": "^8.5.0",
-        "typescript-eslint": "^8.41.0"
+    "main": "dist/index.js",
+    "name": "shamela",
+    "private": false,
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ragaeeb/shamela.git"
     },
-    "dependencies": {
-        "unzipper": "^0.12.3"
-    }
+    "scripts": {
+        "build": "tsup",
+        "e2e": "bun test e2e --env-file .env",
+        "e2e:ci": "bun test e2e",
+        "lint": "biome check .",
+        "test": "bun test src/ --coverage --coverage-reporter=lcov"
+    },
+    "sideEffects": false,
+    "source": "src/index.ts",
+    "type": "module",
+    "types": "dist/index.d.ts",
+    "version": "1.2.0"
 }

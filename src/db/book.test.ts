@@ -83,12 +83,38 @@ describe('book', () => {
             const titles = client.query(`SELECT * FROM title`).all();
 
             expect(pages).toEqual([
-                { content: 'P1 #2 1/1', id: 1, number: 2, page: 1, part: null },
-                { content: 'P2 #3 1/2', id: 2, number: 3, page: 2, part: 1 },
-                { content: 'P3 #4 2/3', id: 3, number: 4, page: 3, part: 2 },
+                {
+                    content: 'P1 #2 1/1',
+                    id: 1,
+                    is_deleted: '0',
+                    number: '2',
+                    page: '1',
+                    part: null,
+                    services: null,
+                },
+                {
+                    content: 'P2 #3 1/2',
+                    id: 2,
+                    is_deleted: '0',
+                    number: '3',
+                    page: '2',
+                    part: '1',
+                    services: null,
+                },
+                {
+                    content: 'P3 #4 2/3',
+                    id: 3,
+                    is_deleted: '0',
+                    number: '4',
+                    page: '3',
+                    part: '2',
+                    services: null,
+                },
             ]);
 
-            expect(titles).toEqual([{ content: 'T1', id: 1, page: 1, parent: null }]);
+            expect(titles).toEqual([
+                { content: 'T1', id: 1, is_deleted: '0', page: 1, parent: null },
+            ]);
         });
     });
 
@@ -130,11 +156,37 @@ describe('book', () => {
             const { pages, titles } = getData(client);
 
             expect(pages).toEqual([
-                { content: 'F', id: 1, part: 1 },
-                { content: '3X', id: 2, number: 4, part: 2 },
-                { content: '', id: 3 },
+                {
+                    content: 'F',
+                    id: 1,
+                    is_deleted: '0',
+                    number: null,
+                    page: null,
+                    part: '1',
+                    services: null,
+                },
+                {
+                    content: '3X',
+                    id: 2,
+                    is_deleted: '0',
+                    number: '4',
+                    page: null,
+                    part: '2',
+                    services: null,
+                },
+                {
+                    content: '',
+                    id: 3,
+                    is_deleted: '0',
+                    number: null,
+                    page: null,
+                    part: null,
+                    services: null,
+                },
             ]);
-            expect(titles).toEqual([{ content: 'T', id: 2, page: 20 }]);
+            expect(titles).toEqual([
+                { content: 'T', id: 2, is_deleted: '0', page: 20, parent: null },
+            ]);
         });
 
         it('should only patch the page and not the title', () => {
@@ -150,8 +202,20 @@ describe('book', () => {
 
             const { pages, titles } = getData(client);
 
-            expect(pages).toEqual([{ content: 'F', id: 1, part: 1 }]);
-            expect(titles).toMatchObject([{ content: 'T', id: 2, page: null }]);
+            expect(pages).toEqual([
+                {
+                    content: 'F',
+                    id: 1,
+                    is_deleted: '0',
+                    number: null,
+                    page: null,
+                    part: '1',
+                    services: null,
+                },
+            ]);
+            expect(titles).toEqual([
+                { content: 'T', id: 2, is_deleted: '0', page: null, parent: null },
+            ]);
         });
 
         it('should only patch the title and not the page', () => {
@@ -167,8 +231,20 @@ describe('book', () => {
 
             const { pages, titles } = getData(client);
 
-            expect(pages).toEqual([{ content: 'C', id: 1 }]);
-            expect(titles).toEqual([{ content: 'T', id: 2, page: 1 }]);
+            expect(pages).toEqual([
+                {
+                    content: 'C',
+                    id: 1,
+                    is_deleted: '0',
+                    number: null,
+                    page: null,
+                    part: null,
+                    services: null,
+                },
+            ]);
+            expect(titles).toEqual([
+                { content: 'T', id: 2, is_deleted: '0', page: 1, parent: null },
+            ]);
         });
 
         it('should handle case where is_deleted does not exist on the asl', () => {
@@ -190,8 +266,19 @@ describe('book', () => {
 
             const { pages, titles } = getData(client);
 
-            expect(pages).toEqual([{ content: 'C', id: 1 }]);
-            expect(titles).toEqual([{ content: 'T', id: 2, page: 1 }]);
+            expect(pages).toEqual([
+                {
+                    content: 'C',
+                    id: 1,
+                    number: null,
+                    page: null,
+                    part: null,
+                    services: null,
+                },
+            ]);
+            expect(titles).toEqual([
+                { content: 'T', id: 2, page: 1, parent: null },
+            ]);
         });
     });
 });
