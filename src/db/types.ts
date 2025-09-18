@@ -2,100 +2,82 @@
  * Enumeration of database table names.
  */
 export enum Tables {
-    /** Authors table */
-    Authors = 'authors',
-    /** Books table */
-    Books = 'books',
-    /** Categories table */
-    Categories = 'categories',
+    /** Author table */
+    Authors = 'author',
+    /** Book table */
+    Books = 'book',
+    /** Category table */
+    Categories = 'category',
     /** Page table */
     Page = 'page',
     /** Title table */
     Title = 'title',
 }
 
+type SQLiteValue = number | string | null;
+
 /**
- * Database row structure for authors table.
+ * Database row structure for the author table.
  */
 export type AuthorRow = {
-    /** Author biography */
-    biography: string;
-    /** Death year */
-    death: number;
-    /** Unique identifier */
+    biography: SQLiteValue;
+    death_number: SQLiteValue;
+    death_text: SQLiteValue;
     id: number;
-    /** Author name */
-    name: string;
+    is_deleted: SQLiteValue;
+    name: SQLiteValue;
 };
 
 /**
- * Database row structure for books table.
+ * Database row structure for the book table.
  */
 export type BookRow = {
-    /** Serialized author ID(s) */
-    author: string;
-    /** Bibliography information */
-    bibliography: string;
-    /** Category ID */
-    category: number;
-    /** Publication date (nullable) */
-    date?: null | number;
-    /** Hint or description (nullable) */
-    hint: null | string;
-    /** Unique identifier */
+    author: SQLiteValue;
+    bibliography: SQLiteValue;
+    category: SQLiteValue;
+    date: SQLiteValue;
+    hint: SQLiteValue;
     id: number;
-    /** Major version */
-    major: number;
-    /** Serialized metadata */
-    metadata: string;
-    /** Minor version */
-    minor?: number;
-    /** Book name */
-    name: string;
-    /** Serialized PDF links (nullable) */
-    pdf_links: null | string;
-    /** Printed flag */
-    printed: number;
-    /** Book type */
-    type: number;
+    is_deleted: SQLiteValue;
+    major_release: SQLiteValue;
+    metadata: SQLiteValue;
+    minor_release: SQLiteValue;
+    name: SQLiteValue;
+    pdf_links: SQLiteValue;
+    printed: SQLiteValue;
+    type: SQLiteValue;
 };
 
 /**
- * Database row structure for categories table.
+ * Database row structure for the category table.
  */
 export type CategoryRow = {
-    /** Unique identifier */
     id: number;
-    /** Category name */
-    name: string;
+    is_deleted: SQLiteValue;
+    name: SQLiteValue;
+    order: SQLiteValue;
 };
 
 /**
- * Database row structure for page table.
+ * Database row structure for the page table.
  */
 export type PageRow = {
-    /** Page content */
-    content: string;
-    /** Unique identifier */
+    content: SQLiteValue;
     id: number;
-    /** Page number (nullable) */
-    number: null | number;
-    /** Page reference (nullable) */
-    page: null | number;
-    /** Part number (nullable) */
-    part: null | number;
+    is_deleted: SQLiteValue;
+    number: SQLiteValue;
+    page: SQLiteValue;
+    part: SQLiteValue;
+    services: SQLiteValue;
 };
 
 /**
- * Database row structure for title table.
+ * Database row structure for the title table.
  */
 export type TitleRow = {
-    /** Title content */
-    content: string;
-    /** Unique identifier */
+    content: SQLiteValue;
     id: number;
-    /** Page number */
-    page: number;
-    /** Parent title ID (nullable) */
-    parent: null | number;
+    is_deleted: SQLiteValue;
+    page: SQLiteValue;
+    parent: SQLiteValue;
 };

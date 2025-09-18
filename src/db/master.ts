@@ -1,11 +1,22 @@
 import { Database } from 'bun:sqlite';
 import path from 'node:path';
 
-import type { Author, Book, Category, MasterData, PDFLinks } from '../types';
-
-import { UNKNOWN_VALUE_PLACEHOLDER } from '../utils/constants';
+import type { Author, Book, Category, MasterData } from '../types';
 import { attachDB, detachDB } from './queryBuilder';
-import { type BookRow, Tables } from './types';
+import { Tables } from './types';
+
+const ensureTableSchema = (db: Database, alias: string, table: Tables) => {
+    const row = db
+        .query(`SELECT sql FROM ${alias}.sqlite_master WHERE type='table' AND name = ?1`)
+        .get(table) as { sql: string } | undefined;
+
+    if (!row?.sql) {
+        throw new Error(`Missing table definition for ${table} in ${alias}`);
+    }
+
+    db.run(`DROP TABLE IF EXISTS ${table}`);
+    db.run(row.sql);
+};
 
 /**
  * Copies data from foreign master table files into the main master database.
@@ -28,14 +39,18 @@ export const copyForeignMasterTableData = (db: Database, sourceTables: string[])
 
     Object.entries(aliasToPath).forEach(([alias, dbPath]) => db.run(attachDB(dbPath, alias)));
 
+    ensureTableSchema(db, Tables.Authors, Tables.Authors);
+    ensureTableSchema(db, Tables.Books, Tables.Books);
+    ensureTableSchema(db, Tables.Categories, Tables.Categories);
+
     const insertAuthors = db.prepare(
-        `INSERT INTO ${Tables.Authors} SELECT id,name,biography,(CASE WHEN death_number = ${UNKNOWN_VALUE_PLACEHOLDER} THEN NULL ELSE death_number END) AS death_number FROM author WHERE is_deleted='0'`,
+        `INSERT INTO ${Tables.Authors} SELECT * FROM ${Tables.Authors}.${Tables.Authors}`,
     );
     const insertBooks = db.prepare(
-        `INSERT INTO ${Tables.Books} SELECT id,name,category,type,(CASE WHEN date = ${UNKNOWN_VALUE_PLACEHOLDER} THEN NULL ELSE date END) AS date,author,printed,major_release,minor_release,bibliography,hint,pdf_links,metadata FROM book WHERE is_deleted='0'`,
+        `INSERT INTO ${Tables.Books} SELECT * FROM ${Tables.Books}.${Tables.Books}`,
     );
     const insertCategories = db.prepare(
-        `INSERT INTO ${Tables.Categories} SELECT id,name FROM category WHERE is_deleted='0'`,
+        `INSERT INTO ${Tables.Categories} SELECT * FROM ${Tables.Categories}.${Tables.Categories}`,
     );
 
     db.transaction(() => {
@@ -59,80 +74,66 @@ export const copyForeignMasterTableData = (db: Database, sourceTables: string[])
  *
  * @throws {Error} When table creation fails due to database constraints or permissions
  */
+const createCompatibilityView = (db: Database, viewName: string, sourceTable: Tables) => {
+    db.run(`DROP VIEW IF EXISTS ${viewName}`);
+    db.run(`CREATE VIEW ${viewName} AS SELECT * FROM ${sourceTable}`);
+};
+
 export const createTables = (db: Database) => {
-    db.run('CREATE TABLE authors (id INTEGER PRIMARY KEY, name TEXT, biography TEXT, death INTEGER)');
     db.run(
-        'CREATE TABLE books (id INTEGER PRIMARY KEY, name TEXT, category INTEGER, type INTEGER, date INTEGER, author TEXT, printed INTEGER, major INTEGER, minor INTEGER, bibliography TEXT, hint TEXT, pdf_links TEXT, metadata TEXT)',
+        `CREATE TABLE ${Tables.Authors} (
+            id INTEGER,
+            is_deleted TEXT,
+            name TEXT,
+            biography TEXT,
+            death_text TEXT,
+            death_number TEXT
+        )`,
     );
-    db.run('CREATE TABLE categories (id INTEGER PRIMARY KEY, name TEXT)');
+    db.run(
+        `CREATE TABLE ${Tables.Books} (
+            id INTEGER,
+            name TEXT,
+            is_deleted TEXT,
+            category TEXT,
+            type TEXT,
+            date TEXT,
+            author TEXT,
+            printed TEXT,
+            minor_release TEXT,
+            major_release TEXT,
+            bibliography TEXT,
+            hint TEXT,
+            pdf_links TEXT,
+            metadata TEXT
+        )`,
+    );
+    db.run(
+        `CREATE TABLE ${Tables.Categories} (
+            id INTEGER,
+            is_deleted TEXT,
+            "order" TEXT,
+            name TEXT
+        )`,
+    );
+
+    // Provide backward-compatible pluralised views since callers historically
+    // queried "authors", "books", and "categories" tables.
+    createCompatibilityView(db, 'authors', Tables.Authors);
+    createCompatibilityView(db, 'books', Tables.Books);
+    createCompatibilityView(db, 'categories', Tables.Categories);
 };
 
 export const getAllAuthors = (db: Database) => {
-    const rows = db.query(`SELECT * FROM ${Tables.Authors}`).all();
-
-    const authors: Author[] = rows.map((r: any) => ({
-        ...(r.biography && { biography: r.biography }),
-        ...(r.death && { death: r.death }),
-        id: r.id,
-        name: r.name,
-    }));
-
-    return authors;
+    return db.query(`SELECT * FROM ${Tables.Authors}`).all() as Author[];
 };
 
 export const getAllBooks = (db: Database) => {
-    const rows = db.query(`SELECT * FROM ${Tables.Books}`).all();
-
-    const books: Book[] = rows.map((row: any) => {
-        const r = row as BookRow;
-
-        return {
-            author: parseAuthor(r.author),
-            bibliography: r.bibliography,
-            category: r.category,
-            id: r.id,
-            major: r.major,
-            metadata: JSON.parse(r.metadata),
-            name: r.name,
-            printed: r.printed,
-            type: r.type,
-            ...(r.date && r.date.toString() !== UNKNOWN_VALUE_PLACEHOLDER && { date: r.date }),
-            ...(r.hint && { hint: r.hint }),
-            ...(r.pdf_links && { pdfLinks: parsePdfLinks(r.pdf_links) }),
-            ...(r.minor && { minorRelease: r.minor }),
-        };
-    });
-
-    return books;
+    return db.query(`SELECT * FROM ${Tables.Books}`).all() as Book[];
 };
 
 export const getAllCategories = (db: Database) => {
-    const rows = db.query(`SELECT * FROM ${Tables.Categories}`).all();
-
-    const categories: Category[] = rows.map((r: any) => ({
-        id: r.id,
-        name: r.name,
-    }));
-
-    return categories;
-};
-
-const parseAuthor = (value: string) => {
-    const result: number[] = value.split(',\\s+').map((id) => parseInt(id.trim()));
-    return result.length > 1 ? result : result[0];
-};
-
-const parsePdfLinks = (value: string) => {
-    const result = JSON.parse(value);
-
-    if (result.files) {
-        result.files = (result.files as string[]).map((f: string) => {
-            const [file, id] = f.split('|');
-            return { ...(id && { id }), file };
-        });
-    }
-
-    return result as PDFLinks;
+    return db.query(`SELECT * FROM ${Tables.Categories}`).all() as Category[];
 };
 
 export const getData = (db: Database) => {
