@@ -10,7 +10,7 @@
         "@types/bun": "^1.2.22",
         "@types/node": "^24.5.2",
         "@types/unzipper": "^0.10.11",
-        "semantic-release": "^24.2.8",
+        "semantic-release": "^24.2.9",
         "tsup": "^8.5.0"
     },
     "engines": {
@@ -51,5 +51,5 @@
     "source": "src/index.ts",
     "type": "module",
     "types": "dist/index.d.ts",
-    "version": "1.2.0"
+    "version": "1.2.1"
 }

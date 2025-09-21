@@ -4,21 +4,39 @@ import type { BookData, Page, Title } from '../types';
 import logger from '../utils/logger';
 import { Tables } from './types';
 
-type Row = Record<string, any>;
+type Row = Record<string, any> & { is_deleted?: string };
 
 const PATCH_NOOP_VALUE = '#';
 
+/**
+ * Retrieves column information for a specified table.
+ * @param db - The database instance
+ * @param table - The table name to get info for
+ * @returns Array of column information with name and type
+ */
 const getTableInfo = (db: Database, table: Tables) => {
     return db.query(`PRAGMA table_info(${table})`).all() as { name: string; type: string }[];
 };
 
+/**
+ * Checks if a table exists in the database.
+ * @param db - The database instance
+ * @param table - The table name to check
+ * @returns True if the table exists, false otherwise
+ */
 const hasTable = (db: Database, table: Tables): boolean => {
-    const result = db
-        .query(`SELECT name FROM sqlite_master WHERE type='table' AND name = ?1`)
-        .get(table) as { name: string } | undefined;
+    const result = db.query(`SELECT name FROM sqlite_master WHERE type='table' AND name = ?1`).get(table) as
+        | { name: string }
+        | undefined;
     return Boolean(result);
 };
 
+/**
+ * Reads all rows from a specified table.
+ * @param db - The database instance
+ * @param table - The table name to read from
+ * @returns Array of rows, or empty array if table doesn't exist
+ */
 const readRows = (db: Database, table: Tables): Row[] => {
     if (!hasTable(db, table)) {
         return [];
@@ -27,19 +45,22 @@ const readRows = (db: Database, table: Tables): Row[] => {
     return db.query(`SELECT * FROM ${table}`).all() as Row[];
 };
 
+/**
+ * Checks if a row is marked as deleted.
+ * @param row - The row to check
+ * @returns True if the row has is_deleted field set to '1', false otherwise
+ */
 const isDeleted = (row: Row): boolean => {
-    if (!('is_deleted' in row)) {
-        return false;
-    }
-
-    const value = row.is_deleted;
-    if (value === null || value === undefined) {
-        return false;
-    }
-
-    return String(value) === '1';
+    return String(row.is_deleted) === '1';
 };
 
+/**
+ * Merges values from a base row and patch row, with patch values taking precedence.
+ * @param baseRow - The original row data (can be undefined)
+ * @param patchRow - The patch row data with updates (can be undefined)
+ * @param columns - Array of column names to merge
+ * @returns Merged row with combined values
+ */
 const mergeRowValues = (baseRow: Row | undefined, patchRow: Row | undefined, columns: string[]): Row => {
     const merged: Row = {};
 
@@ -49,7 +70,7 @@ const mergeRowValues = (baseRow: Row | undefined, patchRow: Row | undefined, col
             continue;
         }
 
-        if (patchRow && Object.prototype.hasOwnProperty.call(patchRow, column)) {
+        if (patchRow && Object.hasOwn(patchRow, column)) {
             const value = patchRow[column];
 
             if (value !== PATCH_NOOP_VALUE && value !== null && value !== undefined) {
@@ -58,7 +79,7 @@ const mergeRowValues = (baseRow: Row | undefined, patchRow: Row | undefined, col
             }
         }
 
-        if (baseRow && Object.prototype.hasOwnProperty.call(baseRow, column)) {
+        if (baseRow && Object.hasOwn(baseRow, column)) {
             merged[column] = baseRow[column];
             continue;
         }
@@ -69,6 +90,13 @@ const mergeRowValues = (baseRow: Row | undefined, patchRow: Row | undefined, col
     return merged;
 };
 
+/**
+ * Merges arrays of base rows and patch rows, handling deletions and updates.
+ * @param baseRows - Original rows from the base database
+ * @param patchRows - Patch rows containing updates, additions, and deletions
+ * @param columns - Array of column names to merge
+ * @returns Array of merged rows with patches applied
+ */
 const mergeRows = (baseRows: Row[], patchRows: Row[], columns: string[]): Row[] => {
     const baseIds = new Set<string>();
     const patchById = new Map<string, Row>();
@@ -106,30 +134,41 @@ const mergeRows = (baseRows: Row[], patchRows: Row[], columns: string[]): Row[] 
     return merged;
 };
 
+/**
+ * Inserts multiple rows into a specified table using a prepared statement.
+ * @param db - The database instance
+ * @param table - The table name to insert into
+ * @param columns - Array of column names
+ * @param rows - Array of row data to insert
+ */
 const insertRows = (db: Database, table: Tables, columns: string[], rows: Row[]) => {
     if (rows.length === 0) {
         return;
     }
 
     const placeholders = columns.map(() => '?').join(',');
-    const statement = db.prepare(
-        `INSERT INTO ${table} (${columns.join(',')}) VALUES (${placeholders})`,
-    );
+    const statement = db.prepare(`INSERT INTO ${table} (${columns.join(',')}) VALUES (${placeholders})`);
 
     rows.forEach((row) => {
-        const values = columns.map((column) =>
-            Object.prototype.hasOwnProperty.call(row, column) ? row[column] : null,
-        );
-        statement.run(values);
+        const values = columns.map((column) => (column in row ? row[column] : null));
+        // Spread the values array instead of passing it directly
+        statement.run(...values);
     });
 
     statement.finalize();
 };
 
+/**
+ * Ensures the target database has the same table schema as the source database.
+ * @param target - The target database to create/update the table in
+ * @param source - The source database to copy the schema from
+ * @param table - The table name to ensure schema for
+ * @returns True if schema was successfully ensured, false otherwise
+ */
 const ensureTableSchema = (target: Database, source: Database, table: Tables) => {
-    const row = source
-        .query(`SELECT sql FROM sqlite_master WHERE type='table' AND name = ?1`)
-        .get(table) as { sql: string } | undefined;
+    const row = source.query(`SELECT sql FROM sqlite_master WHERE type='table' AND name = ?1`).get(table) as
+        | { sql: string }
+        | undefined;
 
     if (!row?.sql) {
         logger.warn(`${table} table definition missing in source database`);
@@ -141,12 +180,14 @@ const ensureTableSchema = (target: Database, source: Database, table: Tables) =>
     return true;
 };
 
-const copyAndPatchTable = (
-    target: Database,
-    source: Database,
-    patch: Database | null,
-    table: Tables,
-) => {
+/**
+ * Copies and patches a table from source to target database, applying patch updates if provided.
+ * @param target - The target database to copy/patch the table to
+ * @param source - The source database containing the base table data
+ * @param patch - Optional patch database containing updates (can be null)
+ * @param table - The table name to copy and patch
+ */
+const copyAndPatchTable = (target: Database, source: Database, patch: Database | null, table: Tables) => {
     if (!hasTable(source, table)) {
         logger.warn(`${table} table missing in source database`);
         return;
@@ -177,6 +218,12 @@ const copyAndPatchTable = (
     insertRows(target, table, columns, mergedRows);
 };
 
+/**
+ * Applies patches from a patch database to the main database.
+ * @param db - The target database to apply patches to
+ * @param aslDB - Path to the source ASL database file
+ * @param patchDB - Path to the patch database file
+ */
 export const applyPatches = (db: Database, aslDB: string, patchDB: string) => {
     const source = new Database(aslDB);
     const patch = new Database(patchDB);
@@ -192,6 +239,11 @@ export const applyPatches = (db: Database, aslDB: string, patchDB: string) => {
     }
 };
 
+/**
+ * Copies table data from a source database without applying any patches.
+ * @param db - The target database to copy data to
+ * @param aslDB - Path to the source ASL database file
+ */
 export const copyTableData = (db: Database, aslDB: string) => {
     const source = new Database(aslDB);
 
@@ -205,6 +257,10 @@ export const copyTableData = (db: Database, aslDB: string) => {
     }
 };
 
+/**
+ * Creates the required tables (Page and Title) in the database with their schema.
+ * @param db - The database instance to create tables in
+ */
 export const createTables = (db: Database) => {
     db.run(
         `CREATE TABLE ${Tables.Page} (
@@ -228,14 +284,29 @@ export const createTables = (db: Database) => {
     );
 };
 
+/**
+ * Retrieves all pages from the Page table.
+ * @param db - The database instance
+ * @returns Array of all pages
+ */
 export const getAllPages = (db: Database) => {
     return db.query(`SELECT * FROM ${Tables.Page}`).all() as Page[];
 };
 
+/**
+ * Retrieves all titles from the Title table.
+ * @param db - The database instance
+ * @returns Array of all titles
+ */
 export const getAllTitles = (db: Database) => {
     return db.query(`SELECT * FROM ${Tables.Title}`).all() as Title[];
 };
 
+/**
+ * Retrieves all book data including pages and titles.
+ * @param db - The database instance
+ * @returns Object containing arrays of pages and titles
+ */
 export const getData = (db: Database): BookData => {
     return { pages: getAllPages(db), titles: getAllTitles(db) };
 };

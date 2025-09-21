@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { IncomingMessage } from 'node:http';
+import type { IncomingMessage } from 'node:http';
 import https from 'node:https';
 import process from 'node:process';
 import { URL, URLSearchParams } from 'node:url';
