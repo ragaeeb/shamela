@@ -1,10 +1,10 @@
 import { createWriteStream, promises as fs } from 'node:fs';
-import { IncomingMessage } from 'node:http';
+import type { IncomingMessage } from 'node:http';
 import https from 'node:https';
 import os from 'node:os';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
-import unzipper, { Entry } from 'unzipper';
+import unzipper, { type Entry } from 'unzipper';
 
 /**
  * Creates a temporary directory with an optional prefix.

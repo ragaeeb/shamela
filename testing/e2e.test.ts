@@ -1,7 +1,7 @@
 import { Database } from 'bun:sqlite';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
-import { promises as fs } from 'fs';
-import path from 'path';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 
 import { downloadBook, downloadMasterDatabase, getBook, getCoverUrl } from '../src/api';
 import { createTempDir } from '../src/utils/io';
@@ -139,7 +139,7 @@ describe('e2e', () => {
 
     describe('getCoverUrl', () => {
         it('should get the cover url', () => {
-            const pattern = new RegExp('https://[a-z.]+/covers/33.jpg', 'g');
+            const pattern = /https:\/\/[a-z.]+\/covers\/33.jpg/g;
             expect(getCoverUrl(33)).toMatch(pattern);
         });
     });

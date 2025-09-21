@@ -4,7 +4,7 @@ interface Logger {
     debug: LogFunction;
     error: LogFunction;
     info: LogFunction;
-    warn?: LogFunction;
+    warn: LogFunction;
 }
 
 const SILENT_LOGGER = { debug: () => {}, error: () => {}, info: () => {}, warn: () => {} };

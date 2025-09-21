@@ -1,3 +1,5 @@
+import { DEFAULT_SANITIZATION_RULES } from './utils/constants';
+
 export type Line = {
     id?: string;
     text: string;
@@ -5,13 +7,12 @@ export type Line = {
 
 const PUNCT_ONLY = /^[)\]\u00BB"”'’.,?!:\u061B\u060C\u061F\u06D4\u2026]+$/;
 const OPENER_AT_END = /[[({«“‘]$/;
-const FOOTNOTE_MARKER = '_________';
 
 const mergeDanglingPunctuation = (lines: Line[]): Line[] => {
     const out: Line[] = [];
     for (const item of lines) {
         const last = out[out.length - 1];
-        if (last && last.id && PUNCT_ONLY.test(item.text)) {
+        if (last?.id && PUNCT_ONLY.test(item.text)) {
             last.text += item.text;
         } else {
             out.push(item);
@@ -24,10 +25,7 @@ const splitIntoLines = (text: string) => {
     let normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
     if (!/\n/.test(normalized)) {
-        normalized = normalized.replace(
-            /([.?!\u061F\u061B\u06D4\u2026]["“”'’»«)\]]?)\s+(?=[\u0600-\u06FF])/,
-            '$1\n',
-        );
+        normalized = normalized.replace(/([.?!\u061F\u061B\u06D4\u2026]["“”'’»«)\]]?)\s+(?=[\u0600-\u06FF])/, '$1\n');
     }
 
     return normalized
@@ -41,7 +39,7 @@ const processTextContent = (content: string): Line[] => {
 };
 
 const extractAttribute = (tag: string, name: string): string | undefined => {
-    const pattern = new RegExp(`${name}\\s*=\\s*("([^"]*)"|'([^']*)'|([^\s>]+))`, 'i');
+    const pattern = new RegExp(`${name}\\s*=\\s*("([^"]*)"|'([^']*)'|([^s>]+))`, 'i');
     const match = tag.match(pattern);
     if (!match) {
         return undefined;
@@ -59,8 +57,9 @@ const tokenize = (html: string): Token[] => {
     const tagRegex = /<[^>]+>/g;
     let lastIndex = 0;
     let match: RegExpExecArray | null;
+    match = tagRegex.exec(html);
 
-    while ((match = tagRegex.exec(html))) {
+    while (match) {
         if (match.index > lastIndex) {
             tokens.push({ type: 'text', value: html.slice(lastIndex, match.index) });
         }
@@ -71,15 +70,16 @@ const tokenize = (html: string): Token[] => {
         const name = nameMatch ? nameMatch[1].toLowerCase() : '';
 
         if (isEnd) {
-            tokens.push({ type: 'end', name });
+            tokens.push({ name, type: 'end' });
         } else {
             const attributes: Record<string, string | undefined> = {};
-            attributes['id'] = extractAttribute(raw, 'id');
+            attributes.id = extractAttribute(raw, 'id');
             attributes['data-type'] = extractAttribute(raw, 'data-type');
-            tokens.push({ type: 'start', name, attributes });
+            tokens.push({ attributes, name, type: 'start' });
         }
 
         lastIndex = tagRegex.lastIndex;
+        match = tagRegex.exec(html);
     }
 
     if (lastIndex < html.length) {
@@ -88,14 +88,6 @@ const tokenize = (html: string): Token[] => {
 
     return tokens;
 };
-
-const removeFootnoteReferencesSimpleInternal = (value: string) =>
-    value
-        .replace(/<sup[^>]*>[^<]*<\/sup>/gi, '')
-        .replace(/(?:\(|\[)\s*[0-9\u0660-\u0669]+\s*(?:\)|\])/g, '');
-
-const removeSingleDigitFootnoteReferencesInternal = (value: string) =>
-    value.replace(/(?<=\s)[0-9\u0660-\u0669](?=\s)/g, '');
 
 const maybeAppendToPrevTitle = (result: Line[], raw: string) => {
     const last = result[result.length - 1];
@@ -154,7 +146,7 @@ export const parseContentRobust = (content: string): Line[] => {
             const dataType = token.attributes['data-type'];
             if (dataType === 'title') {
                 if (titleDepth === 0) {
-                    const id = token.attributes['id']?.replace(/^toc-/, '') ?? '';
+                    const id = token.attributes.id?.replace(/^toc-/, '') ?? '';
                     currentTitle = { id, text: '' };
                     result.push(currentTitle);
                 }
@@ -177,29 +169,57 @@ export const parseContentRobust = (content: string): Line[] => {
     );
 };
 
-export const removeFootnoteReferencesSimple = (value: string) => {
-    return removeFootnoteReferencesSimpleInternal(value);
-};
+const DEFAULT_COMPILED_RULES = Object.entries(DEFAULT_SANITIZATION_RULES).map(([pattern, replacement]) => ({
+    regex: new RegExp(pattern, 'g'),
+    replacement,
+}));
 
-export const removeSingleDigitFootnoteReferences = (value: string) => {
-    return removeSingleDigitFootnoteReferencesInternal(value);
-};
-
-export const sanitizePageContent = (text: string) => {
-    let content = text
-        .replace(/舄/g, '')
-        .replace(/<img[^>]*>>/g, '')
-        .replace(/﵌/g, 'صلى الله عليه وآله وسلم');
-    let footnote = '';
-    const indexOfFootnote = content.lastIndexOf(FOOTNOTE_MARKER);
-
-    if (indexOfFootnote >= 0) {
-        footnote = content.slice(indexOfFootnote + FOOTNOTE_MARKER.length);
-        content = content.slice(0, indexOfFootnote);
+/**
+ * Compiles sanitization rules into RegExp objects for performance
+ */
+const getCompiledRules = (rules: Record<string, string>) => {
+    if (rules === DEFAULT_SANITIZATION_RULES) {
+        return DEFAULT_COMPILED_RULES;
     }
 
-    content = removeSingleDigitFootnoteReferences(content);
-    content = removeFootnoteReferencesSimple(content);
+    const compiled = [];
+    for (const pattern in rules) {
+        compiled.push({
+            regex: new RegExp(pattern, 'g'),
+            replacement: rules[pattern],
+        });
+    }
+    return compiled;
+};
+
+/**
+ * Sanitizes page content by applying regex replacement rules
+ * @param text - The text to sanitize
+ * @param rules - Optional custom rules (defaults to DEFAULT_SANITIZATION_RULES)
+ * @returns The sanitized text
+ */
+export const sanitizePageContent = (
+    text: string,
+    rules: Record<string, string> = DEFAULT_SANITIZATION_RULES,
+): string => {
+    const compiledRules = getCompiledRules(rules);
+
+    let content = text;
+    for (let i = 0; i < compiledRules.length; i++) {
+        const { regex, replacement } = compiledRules[i];
+        content = content.replace(regex, replacement);
+    }
+    return content;
+};
+
+export const splitPageBodyFromFooter = (content: string, footnoteMarker = '_________') => {
+    let footnote = '';
+    const indexOfFootnote = content.lastIndexOf(footnoteMarker);
+
+    if (indexOfFootnote >= 0) {
+        footnote = content.slice(indexOfFootnote + footnoteMarker.length);
+        content = content.slice(0, indexOfFootnote);
+    }
 
     return [content, footnote] as const;
 };

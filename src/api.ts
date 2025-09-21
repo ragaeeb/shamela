@@ -10,7 +10,7 @@ import {
     createTables as createMasterTables,
     getData as getMasterData,
 } from './db/master.js';
-import {
+import type {
     BookData,
     DownloadBookOptions,
     DownloadMasterOptions,
