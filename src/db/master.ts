@@ -46,7 +46,9 @@ export const copyForeignMasterTableData = (db: Database, sourceTables: string[])
         aliasToPath[name] = tablePath;
     }
 
-    Object.entries(aliasToPath).forEach(([alias, dbPath]) => db.run(attachDB(dbPath, alias)));
+    Object.entries(aliasToPath).forEach(([alias, dbPath]) => {
+        db.run(attachDB(dbPath, alias));
+    });
 
     ensureTableSchema(db, Tables.Authors, Tables.Authors);
     ensureTableSchema(db, Tables.Books, Tables.Books);

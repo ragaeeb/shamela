@@ -18,6 +18,7 @@ import type {
     GetBookMetadataResponsePayload,
     GetMasterMetadataResponsePayload,
 } from './types.js';
+import { mapPageRowToPage, mapTitleRowToTitle, redactUrl } from './utils/common.js';
 import { DEFAULT_MASTER_METADATA_VERSION } from './utils/constants.js';
 import { createTempDir, unzipFromUrl } from './utils/io.js';
 import logger from './utils/logger.js';
@@ -36,6 +37,58 @@ type BookUpdatesResponse = {
     major_release_url: string;
     minor_release?: number;
     minor_release_url?: string;
+};
+
+/**
+ * Sets up a book database with tables and data, returning the database client.
+ *
+ * This helper function handles the common logic of downloading book files,
+ * creating database tables, and applying patches or copying data.
+ *
+ * @param id - The unique identifier of the book
+ * @param bookMetadata - Optional pre-fetched book metadata
+ * @returns A promise that resolves to an object containing the database client and cleanup function
+ */
+const setupBookDatabase = async (
+    id: number,
+    bookMetadata?: GetBookMetadataResponsePayload,
+): Promise<{ client: Database; cleanup: () => Promise<void> }> => {
+    logger.info(`Setting up book database for ${id}`);
+
+    const outputDir = await createTempDir('shamela_setupBook');
+
+    const bookResponse: GetBookMetadataResponsePayload = bookMetadata || (await getBookMetadata(id));
+    const [[bookDatabase], [patchDatabase] = []]: string[][] = await Promise.all([
+        unzipFromUrl(bookResponse.majorReleaseUrl, outputDir),
+        ...(bookResponse.minorReleaseUrl ? [unzipFromUrl(bookResponse.minorReleaseUrl, outputDir)] : []),
+    ]);
+    const dbPath = path.join(outputDir, 'book.db');
+
+    const client = new Database(dbPath);
+
+    try {
+        logger.info(`Creating tables`);
+        await createBookTables(client);
+
+        if (patchDatabase) {
+            logger.info(`Applying patches from ${patchDatabase} to ${bookDatabase}`);
+            await applyPatches(client, bookDatabase, patchDatabase);
+        } else {
+            logger.info(`Copying table data from ${bookDatabase}`);
+            await copyTableData(client, bookDatabase);
+        }
+
+        const cleanup = async () => {
+            client.close();
+            await fs.rm(outputDir, { recursive: true });
+        };
+
+        return { cleanup, client };
+    } catch (error) {
+        client.close();
+        await fs.rm(outputDir, { recursive: true });
+        throw error;
+    }
 };
 
 /**
@@ -67,7 +120,7 @@ export const getBookMetadata = async (
         minor_release: (options?.minorVersion || 0).toString(),
     });
 
-    logger.info(`Fetching shamela.ws book link: ${url.toString()}`);
+    logger.info(`Fetching shamela.ws book link: ${redactUrl(url)}`);
 
     try {
         const response = (await httpsGet(url)) as BookUpdatesResponse;
@@ -111,45 +164,30 @@ export const getBookMetadata = async (
 export const downloadBook = async (id: number, options: DownloadBookOptions): Promise<string> => {
     logger.info(`downloadBook ${id} ${JSON.stringify(options)}`);
 
-    const outputDir = await createTempDir('shamela_downloadBook');
-
-    const bookResponse: GetBookMetadataResponsePayload = options?.bookMetadata || (await getBookMetadata(id));
-    const [[bookDatabase], [patchDatabase] = []]: string[][] = await Promise.all([
-        unzipFromUrl(bookResponse.majorReleaseUrl, outputDir),
-        ...(bookResponse.minorReleaseUrl ? [unzipFromUrl(bookResponse.minorReleaseUrl, outputDir)] : []),
-    ]);
-    const dbPath = path.join(outputDir, 'book.db');
-
-    const client = new Database(dbPath);
+    const { client, cleanup } = await setupBookDatabase(id, options?.bookMetadata);
 
     try {
-        logger.info(`Creating tables`);
-        await createBookTables(client);
-
-        if (patchDatabase) {
-            logger.info(`Applying patches from ${patchDatabase} to ${bookDatabase}`);
-            await applyPatches(client, bookDatabase, patchDatabase);
-        } else {
-            logger.info(`Copying table data from ${bookDatabase}`);
-            await copyTableData(client, bookDatabase);
-        }
-
         const { ext: extension } = path.parse(options.outputFile.path);
 
         if (extension === '.json') {
             const result = await getBookData(client);
             await Bun.file(options.outputFile.path).write(JSON.stringify(result, null, 2));
+        } else if (extension === '.db' || extension === '.sqlite') {
+            // For database files, we need to handle the file copying differently
+            // since we can't move an open database file
+            const tempDbPath = client.filename;
+            client.close();
+            await fs.rename(tempDbPath, options.outputFile.path);
+            // Skip cleanup for the db file since we moved it
+            const outputDir = path.dirname(tempDbPath);
+            await fs.rm(outputDir, { recursive: true });
+            return options.outputFile.path;
         }
 
-        client.close();
-
-        if (extension === '.db' || extension === '.sqlite') {
-            await fs.rename(dbPath, options.outputFile.path);
-        }
-
-        await fs.rm(outputDir, { recursive: true });
-    } finally {
-        client.close();
+        await cleanup();
+    } catch (error) {
+        await cleanup();
+        throw error;
     }
 
     return options.outputFile.path;
@@ -179,7 +217,7 @@ export const getMasterMetadata = async (version: number = 0): Promise<GetMasterM
 
     const url = buildUrl(process.env.SHAMELA_API_MASTER_PATCH_ENDPOINT as string, { version: version.toString() });
 
-    logger.info(`Fetching shamela.ws master database patch link: ${url.toString()}`);
+    logger.info(`Fetching shamela.ws master database patch link: ${redactUrl(url)}`);
 
     try {
         const response: Record<string, any> = await httpsGet(url);
@@ -243,7 +281,7 @@ export const downloadMasterDatabase = async (options: DownloadMasterOptions): Pr
     const masterResponse: GetMasterMetadataResponsePayload =
         options.masterMetadata || (await getMasterMetadata(DEFAULT_MASTER_METADATA_VERSION));
 
-    logger.info(`Downloading master database from: ${JSON.stringify(masterResponse)}`);
+    logger.info(`Downloading master database ${masterResponse.version} from: ${redactUrl(masterResponse.url)}`);
     const sourceTables: string[] = await unzipFromUrl(fixHttpsProtocol(masterResponse.url), outputDir);
 
     logger.info(`sourceTables downloaded: ${sourceTables.toString()}`);
@@ -305,11 +343,20 @@ export const downloadMasterDatabase = async (options: DownloadMasterOptions): Pr
  * ```
  */
 export const getBook = async (id: number): Promise<BookData> => {
-    const outputDir = await createTempDir('shamela_getBookData');
-    const outputPath = await downloadBook(id, { outputFile: { path: path.join(outputDir, `${id}.json`) } });
+    logger.info(`getBook ${id}`);
 
-    const data: BookData = await Bun.file(outputPath).json();
-    await fs.rm(outputDir, { recursive: true });
+    const { client, cleanup } = await setupBookDatabase(id);
 
-    return data;
+    try {
+        const data = await getBookData(client);
+
+        const result: BookData = {
+            pages: data.pages.map(mapPageRowToPage),
+            titles: data.titles.map(mapTitleRowToTitle),
+        };
+
+        return result;
+    } finally {
+        await cleanup();
+    }
 };

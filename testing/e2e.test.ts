@@ -44,13 +44,13 @@ describe('e2e', () => {
 
                 const { authors, books, categories } = row as { authors: number; books: number; categories: number };
 
-                expect(authors > 3000).toBe(true);
-                expect(books > 8000).toBe(true);
-                expect(categories > 30).toBe(true);
+                expect(authors > 3000).toBeTrue();
+                expect(books > 8000).toBeTrue();
+                expect(categories > 30).toBeTrue();
             } finally {
                 client.close();
             }
-        }, 20000);
+        }, 30000);
 
         it('should get the latest master metadata and then download it as a JSON', async () => {
             const dbPath = path.join(outputDir, `master.json`);
@@ -60,10 +60,10 @@ describe('e2e', () => {
 
             const { authors, books, categories } = JSON.parse(await fs.readFile(result, 'utf8'));
 
-            expect((authors.length as number) > 3000).toBe(true);
-            expect((books.length as number) > 8000).toBe(true);
-            expect((categories.length as number) > 30).toBe(true);
-        }, 20000);
+            expect((authors.length as number) > 3000).toBeTrue();
+            expect((books.length as number) > 8000).toBeTrue();
+            expect((categories.length as number) > 30).toBeTrue();
+        }, 30000);
     });
 
     describe('downloadBook', () => {
@@ -82,12 +82,12 @@ describe('e2e', () => {
 
                 const { pages, titles } = row as { pages: number; titles: number };
 
-                expect(pages > 90).toBe(true);
-                expect(titles > 0).toBe(true);
+                expect(pages > 90).toBeTrue();
+                expect(titles > 0).toBeTrue();
             } finally {
                 client.close();
             }
-        }, 20000);
+        }, 30000);
 
         it('should get the books major version url then download it as json', async () => {
             const dbPath = path.join(outputDir, `book.json`);
@@ -97,44 +97,56 @@ describe('e2e', () => {
 
             const { pages, titles } = JSON.parse(await fs.readFile(result, 'utf8'));
 
-            expect(pages.length > 90).toBe(true);
-            expect(titles.length > 0).toBe(true);
-        }, 20000);
+            expect(pages.length > 90).toBeTrue();
+            expect(titles.length > 0).toBeTrue();
+        }, 30000);
+    });
 
+    describe('getBook', () => {
         it('should get the books major version url then download it as a typed object', async () => {
             const { pages, titles = [] } = await getBook(26592);
 
-            expect(pages.length > 90).toBe(true);
-            expect(titles.length > 0).toBe(true);
-        }, 20000);
+            expect(pages.length > 90).toBeTrue();
+            expect(titles.length > 0).toBeTrue();
+
+            expect(pages[0].page).toBe(43);
+            expect(pages[0].number).toBe('1');
+            expect(pages[0].id).toBe(1);
+
+            expect(titles[0].id).toBe(1);
+            expect(titles[0].page).toBe(1);
+        }, 30000);
 
         it('should get the not crash if minor release url is not available', async () => {
             const { pages, titles = [] } = await getBook(23644);
 
-            expect(pages.length > 90).toBe(true);
-            expect(titles.length > 0).toBe(true);
-        }, 20000);
+            expect(pages.length > 90).toBeTrue();
+            expect(titles.length > 0).toBeTrue();
+
+            expect(pages[0].part).toBe('مقدمة');
+            expect(titles[1].parent).toBe(1);
+        }, 30000);
 
         it('should get the not crash if is_deleted column is not available', async () => {
             const { pages, titles = [] } = await getBook(1388);
 
-            expect(pages.length > 200).toBe(true);
-            expect(titles.length > 110).toBe(true);
-        }, 20000);
+            expect(pages.length > 200).toBeTrue();
+            expect(titles.length > 110).toBeTrue();
+        }, 30000);
 
         it('should get the not crash if is_deleted column did not exist on the asl', async () => {
             const { pages, titles = [] } = await getBook(12994);
 
-            expect(pages.length > 200).toBe(true);
-            expect(titles.length > 20).toBe(true);
-        }, 20000);
+            expect(pages.length > 200).toBeTrue();
+            expect(titles.length > 20).toBeTrue();
+        }, 30000);
 
         it('should correct the http protocol', async () => {
             const { pages, titles = [] } = await getBook(6315);
 
-            expect(pages.length > 10).toBe(true);
-            expect(titles.length > 5).toBe(true);
-        }, 20000);
+            expect(pages.length > 10).toBeTrue();
+            expect(titles.length > 5).toBeTrue();
+        }, 30000);
     });
 
     describe('getCoverUrl', () => {

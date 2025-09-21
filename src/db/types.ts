@@ -19,7 +19,7 @@ export enum Tables {
  */
 export type Deletable = {
     /** Indicates if it was deleted in the patch if it is set to '1 */
-    is_deleted: string;
+    is_deleted?: string;
 };
 
 export type Unique = {
@@ -37,6 +37,8 @@ export type AuthorRow = Deletable &
 
         /** Death year */
         death_number: string;
+
+        /** The death year as a text */
         death_text: string;
 
         /** Author name */
@@ -60,7 +62,7 @@ export type BookRow = Deletable &
         /** Publication date (or 99999 for unavailable) */
         date: string;
 
-        /** Hint or description (nullable) */
+        /** Hint or description */
         hint: string;
 
         /** Major version */
@@ -75,7 +77,7 @@ export type BookRow = Deletable &
         /** Book name */
         name: string;
 
-        /** Serialized PDF links (nullable) */
+        /** Serialized PDF links */
         pdf_links: string;
 
         /** Printed flag */
@@ -92,6 +94,8 @@ export type CategoryRow = Deletable &
     Unique & {
         /** Category name */
         name: string;
+
+        /** Category order in the list to show. */
         order: string;
     };
 
@@ -103,15 +107,17 @@ export type PageRow = Deletable &
         /** Page content */
         content: string;
 
-        /** Page number (nullable) */
-        number: string;
+        /** Page number */
+        number: string | null;
 
-        /** Page reference (nullable) */
-        page: string;
+        /** Page reference */
+        page: string | null;
 
-        /** Part number (nullable) */
-        part: string;
-        services: string;
+        /** Part number */
+        part: string | null;
+
+        /** Additional metadata */
+        services: string | null;
     };
 
 /**
@@ -125,6 +131,6 @@ export type TitleRow = Deletable &
         /** Page number */
         page: string;
 
-        /** Parent title ID (nullable) */
-        parent: string;
+        /** Parent title ID */
+        parent: string | null;
     };
