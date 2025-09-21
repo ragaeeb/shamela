@@ -9,9 +9,28 @@ export type Author = AuthorRow;
  * Represents a book entity.
  */
 export type Book = BookRow;
+
+/**
+ * A category for a book.
+ */
 export type Category = CategoryRow;
-export type Page = PageRow;
-export type Title = TitleRow;
+
+/**
+ * A page in a book.
+ */
+export type Page = Pick<PageRow, 'id' | 'content'> & {
+    page?: number;
+    part?: string;
+    number?: string;
+};
+
+/**
+ * A title heading in a book.
+ */
+export type Title = Pick<TitleRow, 'id' | 'content'> & {
+    page: number;
+    parent?: number;
+};
 
 /**
  * Represents book content data.
@@ -19,8 +38,9 @@ export type Title = TitleRow;
 export type BookData = {
     /** Array of pages in the book */
     pages: Page[];
-    /** Optional array of titles/chapters */
-    titles?: Title[];
+
+    /** Array of titles/chapters */
+    titles: Title[];
 };
 
 /**

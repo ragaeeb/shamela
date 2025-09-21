@@ -1,10 +1,8 @@
 import { Database } from 'bun:sqlite';
+import logger from '@/utils/logger';
+import { type Deletable, type PageRow, Tables, type TitleRow } from './types';
 
-import type { BookData, Page, Title } from '../types';
-import logger from '../utils/logger';
-import { Tables } from './types';
-
-type Row = Record<string, any> & { is_deleted?: string };
+type Row = Record<string, any> & Deletable;
 
 const PATCH_NOOP_VALUE = '#';
 
@@ -70,7 +68,7 @@ const mergeRowValues = (baseRow: Row | undefined, patchRow: Row | undefined, col
             continue;
         }
 
-        if (patchRow && Object.hasOwn(patchRow, column)) {
+        if (patchRow && column in patchRow) {
             const value = patchRow[column];
 
             if (value !== PATCH_NOOP_VALUE && value !== null && value !== undefined) {
@@ -79,7 +77,7 @@ const mergeRowValues = (baseRow: Row | undefined, patchRow: Row | undefined, col
             }
         }
 
-        if (baseRow && Object.hasOwn(baseRow, column)) {
+        if (baseRow && column in baseRow) {
             merged[column] = baseRow[column];
             continue;
         }
@@ -290,7 +288,7 @@ export const createTables = (db: Database) => {
  * @returns Array of all pages
  */
 export const getAllPages = (db: Database) => {
-    return db.query(`SELECT * FROM ${Tables.Page}`).all() as Page[];
+    return db.query(`SELECT * FROM ${Tables.Page}`).all() as PageRow[];
 };
 
 /**
@@ -299,7 +297,7 @@ export const getAllPages = (db: Database) => {
  * @returns Array of all titles
  */
 export const getAllTitles = (db: Database) => {
-    return db.query(`SELECT * FROM ${Tables.Title}`).all() as Title[];
+    return db.query(`SELECT * FROM ${Tables.Title}`).all() as TitleRow[];
 };
 
 /**
@@ -307,6 +305,6 @@ export const getAllTitles = (db: Database) => {
  * @param db - The database instance
  * @returns Object containing arrays of pages and titles
  */
-export const getData = (db: Database): BookData => {
+export const getData = (db: Database) => {
     return { pages: getAllPages(db), titles: getAllTitles(db) };
 };

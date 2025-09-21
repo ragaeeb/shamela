@@ -16,5 +16,7 @@ export const UNKNOWN_VALUE_PLACEHOLDER = '99999';
 export const DEFAULT_SANITIZATION_RULES: Record<string, string> = {
     '<img[^>]*>>': '',
     舄: '',
+    '﵀': 'رَحِمَهُ ٱللَّٰهُ',
+    '﵁': 'رضي الله عنه',
     '﵌': 'صلى الله عليه وآله وسلم',
 };
