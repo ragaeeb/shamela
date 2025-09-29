@@ -7,14 +7,14 @@
     "description": "Library to interact with the Maktabah Shamela v4 APIs",
     "devDependencies": {
         "@biomejs/biome": "^2.2.4",
-        "@types/bun": "^1.2.22",
+        "@types/bun": "^1.2.23",
         "@types/node": "^24.5.2",
         "@types/unzipper": "^0.10.11",
         "semantic-release": "^24.2.9",
         "tsup": "^8.5.0"
     },
     "engines": {
-        "bun": ">=1.2.22",
+        "bun": ">=1.2.23",
         "node": ">=22.0.0"
     },
     "exports": {
@@ -51,5 +51,5 @@
     "source": "src/index.ts",
     "type": "module",
     "types": "dist/index.d.ts",
-    "version": "1.2.2"
+    "version": "1.2.3"
 }

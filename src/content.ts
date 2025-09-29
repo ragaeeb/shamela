@@ -223,3 +223,17 @@ export const splitPageBodyFromFooter = (content: string, footnoteMarker = '_____
 
     return [content, footnote] as const;
 };
+
+export const removeArabicNumericPageMarkers = (text: string) => {
+    return text.replace(/\s?⦗[\u0660-\u0669]+⦘\s?/, ' ');
+};
+
+export const removeTagsExceptSpan = (content: string) => {
+    // Remove <a> tags and their content, keeping only the text inside
+    content = content.replace(/<a[^>]*>(.*?)<\/a>/g, '$1');
+
+    // Remove <hadeeth> tags (both self-closing, with content, and numbered)
+    content = content.replace(/<hadeeth[^>]*>|<\/hadeeth>|<hadeeth-\d+>/g, '');
+
+    return content;
+};
