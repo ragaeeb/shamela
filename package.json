@@ -49,7 +49,7 @@
         "format": "biome format --write .",
         "lint": "biome check .",
         "proxy": "bun scripts/proxy.ts",
-        "storybook": "storybook dev -p 6006",
+        "storybook": "bun scripts/storybook.ts",
         "storybook:build": "storybook build",
         "test": "bun test",
         "e2e": "bun test testing/e2e.test.ts"

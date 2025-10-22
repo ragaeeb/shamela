@@ -473,19 +473,13 @@ The library provides comprehensive TypeScript types for all data structures:
 
 ## Storybook demo
 
-An interactive Storybook playground (`stories/ShamelaDemo.stories.ts`) lets you validate API keys, endpoints, and book downloads directly in the browser. Because the Shamela API does not enable CORS, run the bundled proxy in one terminal before starting Storybook:
-
-```bash
-bun run proxy
-```
-
-In a second terminal, start Storybook:
+An interactive Storybook playground (`stories/ShamelaDemo.stories.ts`) lets you validate API keys and preview book downloads directly in the browser. Because the Shamela API does not enable CORS, the `bun run storybook` script automatically launches the Bun proxy and Storybook together. Ensure `SHAMELA_API_MASTER_PATCH_ENDPOINT` and `SHAMELA_API_BOOKS_ENDPOINT` are defined in your environment, then run:
 
 ```bash
 bun run storybook
 ```
 
-The demo defaults to `http://localhost:8787/api/*` endpoints so credentials can be routed through the proxy. To generate a static build:
+The demo reads the proxied endpoints from `scripts/proxy.ts`, so you only need to provide an API key and book identifier in the UI. To generate a static build:
 
 ```bash
 bun run storybook:build
