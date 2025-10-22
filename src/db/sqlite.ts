@@ -2,18 +2,30 @@ import initSqlJs, { type Database as SqlJsDatabase, type SqlJsStatic, type State
 
 import { getConfigValue } from '../config.js';
 
+/**
+ * Represents a row returned from a SQLite query as a generic key-value object.
+ */
 export type QueryRow = Record<string, any>;
 
+/**
+ * Minimal contract for prepared statements used throughout the project.
+ */
 export interface PreparedStatement {
     run: (...params: any[]) => void;
     finalize: () => void;
 }
 
+/**
+ * Interface describing reusable query helpers that return all rows or a single row.
+ */
 export interface Query {
     all: (...params: any[]) => QueryRow[];
     get: (...params: any[]) => QueryRow | undefined;
 }
 
+/**
+ * Abstraction over the subset of SQLite database operations required by the library.
+ */
 export interface SqliteDatabase {
     run: (sql: string, params?: any[]) => void;
     prepare: (sql: string) => PreparedStatement;
@@ -23,6 +35,9 @@ export interface SqliteDatabase {
     export: () => Uint8Array;
 }
 
+/**
+ * Adapter implementing {@link PreparedStatement} by delegating to a sql.js {@link Statement}.
+ */
 class SqlJsPreparedStatement implements PreparedStatement {
     constructor(private readonly statement: Statement) {}
 
@@ -40,6 +55,9 @@ class SqlJsPreparedStatement implements PreparedStatement {
     };
 }
 
+/**
+ * Wrapper providing the {@link SqliteDatabase} interface on top of a sql.js database instance.
+ */
 class SqlJsDatabaseWrapper implements SqliteDatabase {
     constructor(private readonly db: SqlJsDatabase) {}
 
@@ -108,6 +126,11 @@ let resolvedWasmPath: string | null = null;
 const isNodeEnvironment = typeof process !== 'undefined' && Boolean(process?.versions?.node);
 const DEFAULT_BROWSER_WASM_URL = 'https://cdn.jsdelivr.net/npm/sql.js@1.13.0/dist/sql-wasm.wasm';
 
+/**
+ * Resolves the appropriate location of the sql.js WebAssembly binary.
+ *
+ * @returns The resolved path or remote URL for the sql.js wasm asset
+ */
 const getWasmPath = () => {
     if (!resolvedWasmPath) {
         const configured = getConfigValue('sqlJsWasmUrl');
@@ -124,6 +147,11 @@ const getWasmPath = () => {
     return resolvedWasmPath;
 };
 
+/**
+ * Lazily initialises the sql.js runtime, reusing the same promise for subsequent calls.
+ *
+ * @returns A promise resolving to the sql.js module
+ */
 const loadSql = () => {
     if (!sqlPromise) {
         sqlPromise = initSqlJs({
@@ -134,11 +162,22 @@ const loadSql = () => {
     return sqlPromise;
 };
 
+/**
+ * Creates a new in-memory SQLite database instance backed by sql.js.
+ *
+ * @returns A promise resolving to a {@link SqliteDatabase} wrapper
+ */
 export const createDatabase = async () => {
     const SQL = await loadSql();
     return new SqlJsDatabaseWrapper(new SQL.Database());
 };
 
+/**
+ * Opens an existing SQLite database from the provided binary contents.
+ *
+ * @param data - The Uint8Array containing the SQLite database bytes
+ * @returns A promise resolving to a {@link SqliteDatabase} wrapper
+ */
 export const openDatabase = async (data: Uint8Array) => {
     const SQL = await loadSql();
     return new SqlJsDatabaseWrapper(new SQL.Database(data));

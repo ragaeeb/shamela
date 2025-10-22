@@ -4,6 +4,7 @@ import { configure, getBook, getMasterMetadata } from '../src/index';
 
 const meta = {
     title: 'Demos/Shamela Explorer',
+    tags: ['autodocs'],
     parameters: {
         layout: 'fullscreen',
     },
@@ -23,7 +24,7 @@ const meta = {
 
         const intro = document.createElement('p');
         intro.textContent =
-            'Provide your Shamela API credentials to fetch master metadata and preview the contents of individual books directly in your browser.';
+            'Provide your Shamela API credentials to fetch master metadata and preview the contents of individual books directly in your browser. Use the bundled proxy server (bun run proxy) to work around CORS restrictions when running locally.';
         intro.style.marginBottom = '1.5rem';
 
         const form = document.createElement('form');
@@ -36,7 +37,11 @@ const meta = {
 
         const createField = (
             labelText: string,
-            { type = 'text', defaultValue = '', placeholder = '' }: { type?: string; defaultValue?: string; placeholder?: string },
+            {
+                type = 'text',
+                defaultValue = '',
+                placeholder = '',
+            }: { type?: string; defaultValue?: string; placeholder?: string },
         ) => {
             const wrapper = document.createElement('label');
             wrapper.style.display = 'flex';
@@ -66,14 +71,14 @@ const meta = {
         apiKeyField.input.spellcheck = false;
 
         const masterEndpointField = createField('Master patch endpoint', {
-            defaultValue: 'https://shamela.ws/api/master_patch',
+            defaultValue: 'http://localhost:8787/api/master_patch',
             placeholder: 'https://example.com/master_patch',
         });
         masterEndpointField.input.autocomplete = 'off';
         masterEndpointField.input.spellcheck = false;
 
         const booksEndpointField = createField('Books endpoint', {
-            defaultValue: 'https://shamela.ws/api/books',
+            defaultValue: 'http://localhost:8787/api/books',
             placeholder: 'https://example.com/books',
         });
         booksEndpointField.input.autocomplete = 'off';
@@ -86,7 +91,11 @@ const meta = {
         wasmField.input.autocomplete = 'off';
         wasmField.input.spellcheck = false;
 
-        const bookIdField = createField('Book ID', { defaultValue: '1', type: 'number', placeholder: 'Enter a numeric book id' });
+        const bookIdField = createField('Book ID', {
+            defaultValue: '1',
+            type: 'number',
+            placeholder: 'Enter a numeric book id',
+        });
         bookIdField.input.min = '1';
 
         form.append(

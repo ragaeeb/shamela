@@ -1,4 +1,4 @@
-import { requireConfigValue } from '@/config';
+import { getConfig, requireConfigValue } from '@/config';
 
 /**
  * Builds a URL with query parameters and optional authentication.
@@ -25,15 +25,20 @@ export const buildUrl = (endpoint: string, queryParams: Record<string, any>, use
 };
 
 /**
- * Makes an HTTPS GET request and returns the response data.
+ * Makes an HTTPS GET request and returns the response data using the configured fetch implementation.
  * @template T - The expected return type (Buffer or Record<string, any>)
  * @param {string | URL} url - The URL to make the request to
+ * @param options - Optional overrides including a custom fetch implementation
  * @returns {Promise<T>} A promise that resolves to the response data, parsed as JSON if content-type is application/json, otherwise as Buffer
  * @throws {Error} When the request fails or JSON parsing fails
  */
-export const httpsGet = async <T extends Uint8Array | Record<string, any>>(url: string | URL): Promise<T> => {
+export const httpsGet = async <T extends Uint8Array | Record<string, any>>(
+    url: string | URL,
+    options: { fetchImpl?: typeof fetch } = {},
+): Promise<T> => {
     const target = typeof url === 'string' ? url : url.toString();
-    const response = await fetch(target);
+    const activeFetch = options.fetchImpl ?? getConfig().fetchImplementation ?? fetch;
+    const response = await activeFetch(target);
 
     if (!response.ok) {
         throw new Error(`Error making request: ${response.status} ${response.statusText}`);

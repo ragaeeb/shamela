@@ -7,6 +7,7 @@ const preview: Preview = {
             expanded: true,
         },
     },
+    tags: ['autodocs'],
 };
 
 export default preview;

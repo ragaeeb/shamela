@@ -185,7 +185,12 @@ const ensureTableSchema = (target: SqliteDatabase, source: SqliteDatabase, table
  * @param patch - Optional patch database containing updates (can be null)
  * @param table - The table name to copy and patch
  */
-const copyAndPatchTable = (target: SqliteDatabase, source: SqliteDatabase, patch: SqliteDatabase | null, table: Tables) => {
+const copyAndPatchTable = (
+    target: SqliteDatabase,
+    source: SqliteDatabase,
+    patch: SqliteDatabase | null,
+    table: Tables,
+) => {
     if (!hasTable(source, table)) {
         logger.warn(`${table} table missing in source database`);
         return;

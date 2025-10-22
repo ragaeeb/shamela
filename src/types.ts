@@ -133,6 +133,8 @@ export type ShamelaConfig = {
     masterPatchEndpoint?: string;
     /** Optional override for the sql.js wasm asset location */
     sqlJsWasmUrl?: string;
+    /** Optional custom fetch implementation for environments without a global fetch */
+    fetchImplementation?: typeof fetch;
 };
 
 /**

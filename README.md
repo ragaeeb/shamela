@@ -96,6 +96,8 @@ configure({
     sqlJsWasmUrl: '/assets/sql-wasm.wasm',
     // Optional: integrate with your application's logging system
     logger: console,
+    // Optional: provide a custom fetch implementation (for tests or SSR)
+    fetchImplementation: fetch,
 });
 ```
 
@@ -471,13 +473,19 @@ The library provides comprehensive TypeScript types for all data structures:
 
 ## Storybook demo
 
-An interactive Storybook playground (`stories/ShamelaDemo.stories.ts`) lets you validate API keys, endpoints, and book downloads directly in the browser. Start it locally with:
+An interactive Storybook playground (`stories/ShamelaDemo.stories.ts`) lets you validate API keys, endpoints, and book downloads directly in the browser. Because the Shamela API does not enable CORS, run the bundled proxy in one terminal before starting Storybook:
+
+```bash
+bun run proxy
+```
+
+In a second terminal, start Storybook:
 
 ```bash
 bun run storybook
 ```
 
-To generate a static build:
+The demo defaults to `http://localhost:8787/api/*` endpoints so credentials can be routed through the proxy. To generate a static build:
 
 ```bash
 bun run storybook:build
@@ -485,16 +493,24 @@ bun run storybook:build
 
 ## Testing
 
-The library includes comprehensive tests powered by `bun test`. To run them, ensure you have the necessary environment variables set, then execute:
+The library includes comprehensive tests powered by `bun test`. To run the unit suite, ensure you have the necessary environment variables set, then execute:
 
 ```bash
-bun test
+bun test src
 ```
 
 For end-to-end tests:
 
 ```bash
 bun run e2e
+```
+
+### Formatting
+
+Apply Biome formatting across the repository with:
+
+```bash
+bun run format
 ```
 
 ## License

@@ -93,8 +93,12 @@ describe('master database helpers', () => {
 
     it('preserves deletion flags from source tables', async () => {
         const authors = await createSourceTable(Tables.Authors, [{ id: 1, is_deleted: '1', name: 'Removed' }]);
-        const books = await createSourceTable(Tables.Books, [{ id: 1, is_deleted: '1', name: 'Removed', author: null }]);
-        const categories = await createSourceTable(Tables.Categories, [{ id: 1, is_deleted: '1', name: 'Removed', order: null }]);
+        const books = await createSourceTable(Tables.Books, [
+            { id: 1, is_deleted: '1', name: 'Removed', author: null },
+        ]);
+        const categories = await createSourceTable(Tables.Categories, [
+            { id: 1, is_deleted: '1', name: 'Removed', order: null },
+        ]);
 
         await copyForeignMasterTableData(client, [books, categories, authors]);
 

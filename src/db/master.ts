@@ -66,9 +66,10 @@ export const copyForeignMasterTableData = async (
             for (const [table, sourceDb] of entries) {
                 ensureTableSchema(db, sourceDb, table);
 
-                const columnInfo = sourceDb
-                    .query(`PRAGMA table_info(${table})`)
-                    .all() as Array<{ name: string; type: string }>;
+                const columnInfo = sourceDb.query(`PRAGMA table_info(${table})`).all() as Array<{
+                    name: string;
+                    type: string;
+                }>;
                 const columnNames = columnInfo.map((info) => info.name);
                 if (columnNames.length === 0) {
                     continue;

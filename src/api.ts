@@ -23,6 +23,12 @@ import logger from './utils/logger.js';
 import { buildUrl, httpsGet } from './utils/network.js';
 import { validateEnvVariables, validateMasterSourceTables } from './utils/validation.js';
 
+/**
+ * Normalises download URLs by enforcing HTTPS regardless of the source protocol.
+ *
+ * @param originalUrl - The URL to normalise
+ * @returns The URL string using the HTTPS protocol
+ */
 const fixHttpsProtocol = (originalUrl: string) => {
     const url = new URL(originalUrl);
     url.protocol = 'https';
@@ -30,6 +36,9 @@ const fixHttpsProtocol = (originalUrl: string) => {
     return url.toString();
 };
 
+/**
+ * Response payload received when requesting book update metadata from the Shamela API.
+ */
 type BookUpdatesResponse = {
     major_release: number;
     major_release_url: string;
@@ -37,12 +46,30 @@ type BookUpdatesResponse = {
     minor_release_url?: string;
 };
 
+/**
+ * Determines whether an extracted archive entry represents a SQLite database.
+ *
+ * @param entry - The archive entry to inspect
+ * @returns True when the entry file name ends with .sqlite or .db
+ */
 const isSqliteEntry = (entry: UnzippedEntry) => /\.(sqlite|db)$/i.test(entry.name);
 
+/**
+ * Finds the first SQLite entry from a collection of extracted archive entries.
+ *
+ * @param entries - The archive entries to search through
+ * @returns The matching entry if found, otherwise undefined
+ */
 const findSqliteEntry = (entries: UnzippedEntry[]) => {
     return entries.find(isSqliteEntry);
 };
 
+/**
+ * Extracts the lowercase file extension from the provided path.
+ *
+ * @param filePath - The path or filename to inspect
+ * @returns The file extension including the leading dot, or an empty string when absent
+ */
 const getExtension = (filePath: string) => {
     const match = /\.([^.]+)$/.exec(filePath);
     return match ? `.${match[1].toLowerCase()}` : '';
@@ -119,17 +146,24 @@ const setupBookDatabase = async (
     }
 };
 
+/**
+ * Downloads, validates, and prepares the master SQLite database for use.
+ *
+ * This helper is responsible for retrieving the master archive, ensuring all
+ * required tables are present, copying their contents into a fresh in-memory
+ * database, and returning both the database instance and cleanup hook.
+ *
+ * @param masterMetadata - Optional pre-fetched metadata describing the master archive
+ * @returns A promise resolving to the database client, cleanup function, and version number
+ */
 const setupMasterDatabase = async (
     masterMetadata?: GetMasterMetadataResponsePayload,
 ): Promise<{ client: SqliteDatabase; cleanup: () => Promise<void>; version: number }> => {
     logger.info('Setting up master database');
 
-    const masterResponse =
-        masterMetadata || (await getMasterMetadata(DEFAULT_MASTER_METADATA_VERSION));
+    const masterResponse = masterMetadata || (await getMasterMetadata(DEFAULT_MASTER_METADATA_VERSION));
 
-    logger.info(
-        `Downloading master database ${masterResponse.version} from: ${redactUrl(masterResponse.url)}`,
-    );
+    logger.info(`Downloading master database ${masterResponse.version} from: ${redactUrl(masterResponse.url)}`);
     const sourceTables = await unzipFromUrl(fixHttpsProtocol(masterResponse.url));
 
     logger.info(`sourceTables downloaded: ${sourceTables.map((table) => table.name).toString()}`);

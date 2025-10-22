@@ -25,6 +25,12 @@ export const redactUrl = (
     return urlObj.toString();
 };
 
+/**
+ * Normalises a raw page row from SQLite into a serialisable {@link Page}.
+ *
+ * @param page - The database row representing a page
+ * @returns The mapped page with numeric fields converted where appropriate
+ */
 export const mapPageRowToPage = (page: PageRow) => {
     return {
         content: page.content,
@@ -35,6 +41,12 @@ export const mapPageRowToPage = (page: PageRow) => {
     };
 };
 
+/**
+ * Normalises a raw title row from SQLite into a serialisable {@link Title}.
+ *
+ * @param title - The database row representing a title
+ * @returns The mapped title with numeric identifiers converted
+ */
 export const mapTitleRowToTitle = (title: TitleRow) => {
     const parent = Number(title.parent);
 

@@ -56,22 +56,42 @@ describe('book database helpers', () => {
     });
 
     it('applyPatches merges updates and filters deletions', () => {
-        insertRow(source, Tables.Page, { content: 'Base', id: 1, is_deleted: '0', number: '1', page: '1', part: null, services: null });
+        insertRow(source, Tables.Page, {
+            content: 'Base',
+            id: 1,
+            is_deleted: '0',
+            number: '1',
+            page: '1',
+            part: null,
+            services: null,
+        });
         insertRow(source, Tables.Title, { content: 'Base title', id: 1, is_deleted: '0', page: 1, parent: null });
 
-        insertRow(patch, Tables.Page, { content: 'Patched', id: 1, is_deleted: '0', number: '1', page: '#', part: null, services: null });
+        insertRow(patch, Tables.Page, {
+            content: 'Patched',
+            id: 1,
+            is_deleted: '0',
+            number: '1',
+            page: '#',
+            part: null,
+            services: null,
+        });
         insertRow(patch, Tables.Title, { content: 'Patched title', id: 1, is_deleted: '0', page: 2, parent: null });
-        insertRow(patch, Tables.Page, { content: 'Deleted', id: 2, is_deleted: '1', number: '1', page: '1', part: null, services: null });
+        insertRow(patch, Tables.Page, {
+            content: 'Deleted',
+            id: 2,
+            is_deleted: '1',
+            number: '1',
+            page: '1',
+            part: null,
+            services: null,
+        });
 
         applyPatches(client, source, patch);
 
         const { pages, titles } = getData(client);
 
-        expect(pages).toEqual([
-            expect.objectContaining({ content: 'Patched', id: 1, page: '1' }),
-        ]);
-        expect(titles).toEqual([
-            expect.objectContaining({ content: 'Patched title', id: 1, page: 2 }),
-        ]);
+        expect(pages).toEqual([expect.objectContaining({ content: 'Patched', id: 1, page: '1' })]);
+        expect(titles).toEqual([expect.objectContaining({ content: 'Patched title', id: 1, page: 2 })]);
     });
 });

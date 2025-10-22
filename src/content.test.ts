@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 
-import { parseContentRobust, sanitizePageContent } from './content';
+import {
+    parseContentRobust,
+    removeArabicNumericPageMarkers,
+    removeTagsExceptSpan,
+    sanitizePageContent,
+    splitPageBodyFromFooter,
+} from './content';
 import { DEFAULT_SANITIZATION_RULES } from './utils/constants';
 
 describe('content', () => {
@@ -264,6 +270,29 @@ describe('content', () => {
                     text: 'روى عن عمر ابن المغيرة مجهول',
                 },
             ]);
+        });
+    });
+
+    describe('additional helpers', () => {
+        it('splitPageBodyFromFooter separates trailing footnotes', () => {
+            const [body, footer] = splitPageBodyFromFooter('content_________footnote');
+            expect(body).toBe('content');
+            expect(footer).toBe('footnote');
+        });
+
+        it('splitPageBodyFromFooter returns original text when marker missing', () => {
+            const [body, footer] = splitPageBodyFromFooter('content only');
+            expect(body).toBe('content only');
+            expect(footer).toBe('');
+        });
+
+        it('removeArabicNumericPageMarkers strips numeric markers', () => {
+            expect(removeArabicNumericPageMarkers('النص ⦗١٢٣⦘ هنا')).toBe('النص هنا');
+        });
+
+        it('removeTagsExceptSpan removes anchor and hadeeth tags while keeping text', () => {
+            const input = "قبل <a href='#'>رابط</a> <hadeeth>نص</hadeeth> <span>يبقى</span>";
+            expect(removeTagsExceptSpan(input)).toBe('قبل رابط نص <span>يبقى</span>');
         });
     });
 });
