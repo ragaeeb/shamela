@@ -1,9 +1,5 @@
-import { Database } from 'bun:sqlite';
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
-import process from 'node:process';
-import { URL } from 'node:url';
-
+import { requireConfigValue } from './config.js';
+import { createDatabase, openDatabase, type SqliteDatabase } from './db/sqlite.js';
 import { applyPatches, copyTableData, createTables as createBookTables, getData as getBookData } from './db/book.js';
 import {
     copyForeignMasterTableData,
@@ -20,7 +16,8 @@ import type {
 } from './types.js';
 import { mapPageRowToPage, mapTitleRowToTitle, redactUrl } from './utils/common.js';
 import { DEFAULT_MASTER_METADATA_VERSION } from './utils/constants.js';
-import { createTempDir, unzipFromUrl } from './utils/io.js';
+import type { UnzippedEntry } from './utils/io.js';
+import { unzipFromUrl, writeOutput } from './utils/io.js';
 import logger from './utils/logger.js';
 import { buildUrl, httpsGet } from './utils/network.js';
 import { validateEnvVariables, validateMasterSourceTables } from './utils/validation.js';
@@ -39,6 +36,17 @@ type BookUpdatesResponse = {
     minor_release_url?: string;
 };
 
+const isSqliteEntry = (entry: UnzippedEntry) => /\.(sqlite|db)$/i.test(entry.name);
+
+const findSqliteEntry = (entries: UnzippedEntry[]) => {
+    return entries.find(isSqliteEntry);
+};
+
+const getExtension = (filePath: string) => {
+    const match = /\.([^.]+)$/.exec(filePath);
+    return match ? `.${match[1].toLowerCase()}` : '';
+};
+
 /**
  * Sets up a book database with tables and data, returning the database client.
  *
@@ -52,41 +60,60 @@ type BookUpdatesResponse = {
 const setupBookDatabase = async (
     id: number,
     bookMetadata?: GetBookMetadataResponsePayload,
-): Promise<{ client: Database; cleanup: () => Promise<void> }> => {
+): Promise<{ client: SqliteDatabase; cleanup: () => Promise<void> }> => {
     logger.info(`Setting up book database for ${id}`);
 
-    const outputDir = await createTempDir('shamela_setupBook');
-
     const bookResponse: GetBookMetadataResponsePayload = bookMetadata || (await getBookMetadata(id));
-    const [[bookDatabase], [patchDatabase] = []]: string[][] = await Promise.all([
-        unzipFromUrl(bookResponse.majorReleaseUrl, outputDir),
-        ...(bookResponse.minorReleaseUrl ? [unzipFromUrl(bookResponse.minorReleaseUrl, outputDir)] : []),
-    ]);
-    const dbPath = path.join(outputDir, 'book.db');
+    const patchEntriesPromise = bookResponse.minorReleaseUrl
+        ? unzipFromUrl(bookResponse.minorReleaseUrl)
+        : Promise.resolve<UnzippedEntry[]>([]);
 
-    const client = new Database(dbPath);
+    const [bookEntries, patchEntries] = await Promise.all([
+        unzipFromUrl(bookResponse.majorReleaseUrl),
+        patchEntriesPromise,
+    ]);
+
+    const bookEntry = findSqliteEntry(bookEntries);
+
+    if (!bookEntry) {
+        throw new Error('Unable to locate book database in archive');
+    }
+
+    const client = await createDatabase();
 
     try {
         logger.info(`Creating tables`);
-        await createBookTables(client);
+        createBookTables(client);
 
-        if (patchDatabase) {
-            logger.info(`Applying patches from ${patchDatabase} to ${bookDatabase}`);
-            await applyPatches(client, bookDatabase, patchDatabase);
-        } else {
-            logger.info(`Copying table data from ${bookDatabase}`);
-            await copyTableData(client, bookDatabase);
+        const sourceDatabase = await openDatabase(bookEntry.data);
+
+        try {
+            const patchEntry = findSqliteEntry(patchEntries);
+
+            if (patchEntry) {
+                logger.info(`Applying patches from ${patchEntry.name} to ${bookEntry.name}`);
+                const patchDatabase = await openDatabase(patchEntry.data);
+
+                try {
+                    applyPatches(client, sourceDatabase, patchDatabase);
+                } finally {
+                    patchDatabase.close();
+                }
+            } else {
+                logger.info(`Copying table data from ${bookEntry.name}`);
+                copyTableData(client, sourceDatabase);
+            }
+        } finally {
+            sourceDatabase.close();
         }
 
         const cleanup = async () => {
             client.close();
-            await fs.rm(outputDir, { recursive: true });
         };
 
         return { cleanup, client };
     } catch (error) {
         client.close();
-        await fs.rm(outputDir, { recursive: true });
         throw error;
     }
 };
@@ -115,7 +142,8 @@ export const getBookMetadata = async (
 ): Promise<GetBookMetadataResponsePayload> => {
     validateEnvVariables();
 
-    const url = buildUrl(`${process.env.SHAMELA_API_BOOKS_ENDPOINT}/${id}`, {
+    const booksEndpoint = requireConfigValue('booksEndpoint');
+    const url = buildUrl(`${booksEndpoint}/${id}`, {
         major_release: (options?.majorVersion || 0).toString(),
         minor_release: (options?.minorVersion || 0).toString(),
     });
@@ -164,30 +192,26 @@ export const getBookMetadata = async (
 export const downloadBook = async (id: number, options: DownloadBookOptions): Promise<string> => {
     logger.info(`downloadBook ${id} ${JSON.stringify(options)}`);
 
+    if (!options.outputFile.path) {
+        throw new Error('outputFile.path must be provided to determine output format');
+    }
+
+    const extension = getExtension(options.outputFile.path);
+
     const { client, cleanup } = await setupBookDatabase(id, options?.bookMetadata);
 
     try {
-        const { ext: extension } = path.parse(options.outputFile.path);
-
         if (extension === '.json') {
             const result = await getBookData(client);
-            await Bun.file(options.outputFile.path).write(JSON.stringify(result, null, 2));
+            await writeOutput(options.outputFile, JSON.stringify(result, null, 2));
         } else if (extension === '.db' || extension === '.sqlite') {
-            // For database files, we need to handle the file copying differently
-            // since we can't move an open database file
-            const tempDbPath = client.filename;
-            client.close();
-            await fs.rename(tempDbPath, options.outputFile.path);
-            // Skip cleanup for the db file since we moved it
-            const outputDir = path.dirname(tempDbPath);
-            await fs.rm(outputDir, { recursive: true });
-            return options.outputFile.path;
+            const payload = client.export();
+            await writeOutput(options.outputFile, payload);
+        } else {
+            throw new Error(`Unsupported output extension: ${extension}`);
         }
-
+    } finally {
         await cleanup();
-    } catch (error) {
-        await cleanup();
-        throw error;
     }
 
     return options.outputFile.path;
@@ -215,7 +239,8 @@ export const downloadBook = async (id: number, options: DownloadBookOptions): Pr
 export const getMasterMetadata = async (version: number = 0): Promise<GetMasterMetadataResponsePayload> => {
     validateEnvVariables();
 
-    const url = buildUrl(process.env.SHAMELA_API_MASTER_PATCH_ENDPOINT as string, { version: version.toString() });
+    const masterEndpoint = requireConfigValue('masterPatchEndpoint');
+    const url = buildUrl(masterEndpoint, { version: version.toString() });
 
     logger.info(`Fetching shamela.ws master database patch link: ${redactUrl(url)}`);
 
@@ -243,7 +268,8 @@ export const getMasterMetadata = async (version: number = 0): Promise<GetMasterM
  * ```
  */
 export const getCoverUrl = (bookId: number) => {
-    const { origin } = new URL(process.env.SHAMELA_API_MASTER_PATCH_ENDPOINT!);
+    const masterEndpoint = requireConfigValue('masterPatchEndpoint');
+    const { origin } = new URL(masterEndpoint);
     return `${origin}/covers/${bookId}.jpg`;
 };
 
@@ -276,46 +302,41 @@ export const getCoverUrl = (bookId: number) => {
 export const downloadMasterDatabase = async (options: DownloadMasterOptions): Promise<string> => {
     logger.info(`downloadMasterDatabase ${JSON.stringify(options)}`);
 
-    const outputDir = await createTempDir('shamela_downloadMaster');
-
     const masterResponse: GetMasterMetadataResponsePayload =
         options.masterMetadata || (await getMasterMetadata(DEFAULT_MASTER_METADATA_VERSION));
 
     logger.info(`Downloading master database ${masterResponse.version} from: ${redactUrl(masterResponse.url)}`);
-    const sourceTables: string[] = await unzipFromUrl(fixHttpsProtocol(masterResponse.url), outputDir);
+    const sourceTables = await unzipFromUrl(fixHttpsProtocol(masterResponse.url));
 
-    logger.info(`sourceTables downloaded: ${sourceTables.toString()}`);
+    logger.info(`sourceTables downloaded: ${sourceTables.map((table) => table.name).toString()}`);
 
-    if (!validateMasterSourceTables(sourceTables)) {
-        logger.error(`Some source tables were not found: ${sourceTables.toString()}`);
+    if (!validateMasterSourceTables(sourceTables.map((table) => table.name))) {
+        logger.error(`Some source tables were not found: ${sourceTables.map((table) => table.name).toString()}`);
         throw new Error('Expected tables not found!');
     }
 
-    const dbPath = path.join(outputDir, 'master.db');
+    if (!options.outputFile.path) {
+        throw new Error('outputFile.path must be provided to determine output format');
+    }
 
-    const client = new Database(dbPath);
+    const extension = getExtension(options.outputFile.path);
+    const client = await createDatabase();
 
     try {
         logger.info(`Creating tables`);
-        await createMasterTables(client);
+        createMasterTables(client);
 
         logger.info(`Copying data to master table`);
-        await copyForeignMasterTableData(client, sourceTables);
-
-        const { ext: extension } = path.parse(options.outputFile.path);
+        await copyForeignMasterTableData(client, sourceTables.filter(isSqliteEntry));
 
         if (extension === '.json') {
             const result = await getMasterData(client);
-            await Bun.file(options.outputFile.path).write(JSON.stringify(result, null, 2));
+            await writeOutput(options.outputFile, JSON.stringify(result, null, 2));
+        } else if (extension === '.db' || extension === '.sqlite') {
+            await writeOutput(options.outputFile, client.export());
+        } else {
+            throw new Error(`Unsupported output extension: ${extension}`);
         }
-
-        client.close();
-
-        if (extension === '.db' || extension === '.sqlite') {
-            await fs.rename(dbPath, options.outputFile.path);
-        }
-
-        await fs.rm(outputDir, { recursive: true });
     } finally {
         client.close();
     }

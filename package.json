@@ -2,20 +2,24 @@
     "author": "Ragaeeb Haq",
     "default": "./dist/index.js",
     "dependencies": {
-        "unzipper": "^0.12.3"
+        "fflate": "^0.8.2",
+        "sql.js": "^1.13.0"
     },
     "description": "Library to interact with the Maktabah Shamela v4 APIs",
     "devDependencies": {
         "@biomejs/biome": "^2.2.4",
-        "@types/bun": "^1.2.23",
+        "@storybook/addon-essentials": "^8.3.4",
+        "@storybook/addon-interactions": "^8.3.4",
+        "@storybook/html": "^8.3.4",
+        "@storybook/html-vite": "^8.3.4",
         "@types/node": "^24.5.2",
-        "@types/unzipper": "^0.10.11",
         "semantic-release": "^24.2.9",
-        "tsup": "^8.5.0"
+        "storybook": "^8.3.4",
+        "tsdown": "^0.15.9",
+        "typescript": "^5.6.2"
     },
     "engines": {
-        "bun": ">=1.2.23",
-        "node": ">=22.0.0"
+        "node": ">=18.0.0"
     },
     "exports": {
         ".": {
@@ -41,11 +45,11 @@
         "url": "git+https://github.com/ragaeeb/shamela.git"
     },
     "scripts": {
-        "build": "tsup",
-        "e2e": "bun test e2e --env-file .env",
-        "e2e:ci": "bun test e2e",
+        "build": "tsdown",
         "lint": "biome check .",
-        "test": "bun test src/ --coverage --coverage-reporter=lcov"
+        "storybook": "storybook dev -p 6006",
+        "storybook:build": "storybook build",
+        "test": "bun test"
     },
     "sideEffects": false,
     "source": "src/index.ts",

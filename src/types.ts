@@ -113,6 +113,27 @@ export type GetMasterMetadataResponsePayload = {
  * Output file options.
  */
 export interface OutputOptions {
-    /** Output file path */
-    path: string;
+    /** Output file path (Node.js only) */
+    path?: string;
+    /** Custom writer used when path is not provided */
+    writer?: (payload: string | Uint8Array) => Promise<void> | void;
 }
+
+/**
+ * Runtime configuration for the library.
+ */
+export type ShamelaConfig = {
+    /** API key used to authenticate against Shamela services */
+    apiKey?: string;
+    /** Endpoint used for book metadata */
+    booksEndpoint?: string;
+    /** Endpoint used for master metadata */
+    masterPatchEndpoint?: string;
+    /** Optional override for the sql.js wasm asset location */
+    sqlJsWasmUrl?: string;
+};
+
+/**
+ * Valid configuration keys.
+ */
+export type ShamelaConfigKey = keyof ShamelaConfig;

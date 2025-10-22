@@ -1,8 +1,4 @@
-import { Buffer } from 'node:buffer';
-import type { IncomingMessage } from 'node:http';
-import https from 'node:https';
-import process from 'node:process';
-import { URL, URLSearchParams } from 'node:url';
+import { requireConfigValue } from '@/config';
 
 /**
  * Builds a URL with query parameters and optional authentication.
@@ -13,19 +9,17 @@ import { URL, URLSearchParams } from 'node:url';
  */
 export const buildUrl = (endpoint: string, queryParams: Record<string, any>, useAuth: boolean = true): URL => {
     const url = new URL(endpoint);
-    {
-        const params = new URLSearchParams();
+    const params = new URLSearchParams();
 
-        Object.entries(queryParams).forEach(([key, value]) => {
-            params.append(key, value.toString());
-        });
+    Object.entries(queryParams).forEach(([key, value]) => {
+        params.append(key, value.toString());
+    });
 
-        if (useAuth) {
-            params.append('api_key', process.env.SHAMELA_API_KEY!);
-        }
-
-        url.search = params.toString();
+    if (useAuth) {
+        params.append('api_key', requireConfigValue('apiKey'));
     }
+
+    url.search = params.toString();
 
     return url;
 };
@@ -37,34 +31,20 @@ export const buildUrl = (endpoint: string, queryParams: Record<string, any>, use
  * @returns {Promise<T>} A promise that resolves to the response data, parsed as JSON if content-type is application/json, otherwise as Buffer
  * @throws {Error} When the request fails or JSON parsing fails
  */
-export const httpsGet = <T extends Buffer | Record<string, any>>(url: string | URL): Promise<T> => {
-    return new Promise((resolve, reject) => {
-        https
-            .get(url, (res: IncomingMessage) => {
-                const contentType = res.headers['content-type'] || '';
-                const dataChunks: Buffer[] = [];
+export const httpsGet = async <T extends Uint8Array | Record<string, any>>(url: string | URL): Promise<T> => {
+    const target = typeof url === 'string' ? url : url.toString();
+    const response = await fetch(target);
 
-                res.on('data', (chunk: Buffer) => {
-                    dataChunks.push(chunk);
-                });
+    if (!response.ok) {
+        throw new Error(`Error making request: ${response.status} ${response.statusText}`);
+    }
 
-                res.on('end', () => {
-                    const fullData = Buffer.concat(dataChunks);
+    const contentType = response.headers.get('content-type') ?? '';
 
-                    if (contentType.includes('application/json')) {
-                        try {
-                            const json = JSON.parse(fullData.toString('utf-8'));
-                            resolve(json);
-                        } catch (error: any) {
-                            reject(new Error(`Failed to parse JSON: ${error.message}`));
-                        }
-                    } else {
-                        resolve(fullData as T);
-                    }
-                });
-            })
-            .on('error', (error) => {
-                reject(new Error(`Error making request: ${error.message}`));
-            });
-    });
+    if (contentType.includes('application/json')) {
+        return (await response.json()) as T;
+    }
+
+    const buffer = await response.arrayBuffer();
+    return new Uint8Array(buffer) as T;
 };

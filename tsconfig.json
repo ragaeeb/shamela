@@ -1,6 +1,7 @@
 {
     "compilerOptions": {
         "baseUrl": ".",
+        "lib": ["ESNext", "DOM"],
         "declaration": true,
         "esModuleInterop": true,
         "forceConsistentCasingInFileNames": true,
@@ -16,8 +17,8 @@
         "sourceMap": true,
         "strict": true,
         "target": "ESNext",
-        "types": ["bun-types"]
+        "types": ["bun-types", "node"]
     },
     "exclude": ["node_modules", "**/*.test.ts"],
-    "include": ["src/**/*", "testing/e2e.test.ts"]
+    "include": ["src/**/*"]
 }

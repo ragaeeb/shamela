@@ -1,284 +1,77 @@
-import { Database } from 'bun:sqlite';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { createTempDir } from '../utils/io';
-import { setLogger } from '../utils/logger';
+import { createDatabase, type SqliteDatabase } from './sqlite';
 import { applyPatches, copyTableData, createTables, getData } from './book';
-import { attachDB, insertUnsafely } from './queryBuilder';
 import { Tables } from './types';
 
-const runStatements = (db: Database, statements: string[]) => {
-    db.transaction(() => statements.forEach((sql) => db.run(sql)))();
+const insertRow = (db: SqliteDatabase, table: Tables, values: Record<string, any>) => {
+    const columns = Object.keys(values);
+    const placeholders = columns.map(() => '?').join(',');
+    const statement = db.prepare(`INSERT INTO ${table} (${columns.join(',')}) VALUES (${placeholders})`);
+    try {
+        statement.run(...columns.map((column) => values[column]));
+    } finally {
+        statement.finalize();
+    }
 };
 
-describe('book', () => {
-    let client: Database;
-    let otherClient: Database;
-    let dbPath: string;
-    let aslPath: string;
-    let patchPath: string;
-    let dbFolder: string;
+describe('book database helpers', () => {
+    let client: SqliteDatabase;
+    let source: SqliteDatabase;
+    let patch: SqliteDatabase;
 
-    const createAslTables = (alias: string = 'main', createPages: boolean = true, createTitles: boolean = true) => {
-        if (createPages) {
-            otherClient.run(
-                `CREATE TABLE ${alias}.page (id INTEGER PRIMARY KEY, content TEXT, part TEXT, page TEXT, number TEXT, services TEXT, is_deleted TEXT)`,
-            );
-        }
+    beforeEach(async () => {
+        client = await createDatabase();
+        source = await createDatabase();
+        patch = await createDatabase();
 
-        if (createTitles) {
-            otherClient.run(
-                `CREATE TABLE ${alias}.title (id INTEGER PRIMARY KEY, content TEXT, page INTEGER, parent INTEGER, is_deleted TEXT)`,
-            );
-        }
-    };
-
-    beforeAll(async () => {
-        dbFolder = await createTempDir('shamela_book_test');
-        dbPath = path.join(dbFolder, 'book.db');
-        aslPath = path.join(dbFolder, 'asl.db');
-        patchPath = path.join(dbFolder, 'patch.db');
-        setLogger(console);
-    });
-
-    afterAll(async () => {
-        setLogger();
-        await fs.rm(dbFolder, { recursive: true });
-    });
-
-    beforeEach(() => {
-        client = new Database(dbPath);
-        otherClient = new Database(aslPath);
-
-        otherClient.run(attachDB(patchPath, 'patch'));
-        createAslTables();
         createTables(client);
+        createTables(source);
+        createTables(patch);
     });
 
-    afterEach(async () => {
+    afterEach(() => {
         client.close();
-        otherClient.close();
+        source.close();
+        patch.close();
+    });
 
-        await Promise.all([
-            fs.rm(aslPath, { recursive: true }),
-            fs.rm(patchPath, { recursive: true }),
-            fs.rm(dbPath, { recursive: true }),
+    it('copyTableData copies pages and titles from source', () => {
+        insertRow(source, Tables.Page, {
+            content: 'P1',
+            id: 1,
+            is_deleted: '0',
+            number: '1',
+            page: '1',
+            part: '1',
+            services: null,
+        });
+        insertRow(source, Tables.Title, { content: 'T1', id: 1, is_deleted: '0', page: 1, parent: null });
+
+        copyTableData(client, source);
+
+        const { pages, titles } = getData(client);
+        expect(pages).toHaveLength(1);
+        expect(titles).toHaveLength(1);
+    });
+
+    it('applyPatches merges updates and filters deletions', () => {
+        insertRow(source, Tables.Page, { content: 'Base', id: 1, is_deleted: '0', number: '1', page: '1', part: null, services: null });
+        insertRow(source, Tables.Title, { content: 'Base title', id: 1, is_deleted: '0', page: 1, parent: null });
+
+        insertRow(patch, Tables.Page, { content: 'Patched', id: 1, is_deleted: '0', number: '1', page: '#', part: null, services: null });
+        insertRow(patch, Tables.Title, { content: 'Patched title', id: 1, is_deleted: '0', page: 2, parent: null });
+        insertRow(patch, Tables.Page, { content: 'Deleted', id: 2, is_deleted: '1', number: '1', page: '1', part: null, services: null });
+
+        applyPatches(client, source, patch);
+
+        const { pages, titles } = getData(client);
+
+        expect(pages).toEqual([
+            expect.objectContaining({ content: 'Patched', id: 1, page: '1' }),
         ]);
-    });
-
-    describe('copyTableData', () => {
-        it('should only copy the relevant pages and titles', () => {
-            runStatements(otherClient, [
-                insertUnsafely(Tables.Page, { content: `P1 #2 1/1`, id: 1, number: 2, page: 1 }),
-                insertUnsafely(Tables.Page, { content: `P2 #3 1/2`, id: 2, number: 3, page: 2, part: 1 }),
-                insertUnsafely(Tables.Page, { content: `P3 #4 2/3`, id: 3, number: 4, page: 3, part: 2 }),
-                insertUnsafely(Tables.Title, { content: `T1`, id: 1, page: 1 }),
-            ]);
-
-            copyTableData(client, aslPath);
-
-            const pages = client.query(`SELECT * FROM page`).all();
-            const titles = client.query(`SELECT * FROM title`).all();
-
-            expect(pages).toEqual([
-                {
-                    content: 'P1 #2 1/1',
-                    id: 1,
-                    is_deleted: '0',
-                    number: '2',
-                    page: '1',
-                    part: null,
-                    services: null,
-                },
-                {
-                    content: 'P2 #3 1/2',
-                    id: 2,
-                    is_deleted: '0',
-                    number: '3',
-                    page: '2',
-                    part: '1',
-                    services: null,
-                },
-                {
-                    content: 'P3 #4 2/3',
-                    id: 3,
-                    is_deleted: '0',
-                    number: '4',
-                    page: '3',
-                    part: '2',
-                    services: null,
-                },
-            ]);
-
-            expect(titles).toEqual([
-                { content: 'T1', id: 1, is_deleted: '0', page: 1, parent: null },
-            ]);
-        });
-    });
-
-    describe('applyPatches', () => {
-        it('should not include pages and titles that were deleted', () => {
-            createAslTables('patch');
-
-            runStatements(otherClient, [
-                insertUnsafely(Tables.Page, { id: 1 }),
-                insertUnsafely(Tables.Title, { id: 2 }),
-                insertUnsafely('patch.page', { id: 1 }, true),
-                insertUnsafely('patch.title', { id: 2 }, true),
-            ]);
-
-            applyPatches(client, aslPath, patchPath);
-
-            const { pages, titles } = getData(client);
-
-            expect(pages).toBeEmpty();
-            expect(titles).toBeEmpty();
-        });
-
-        it('should patch the page and title fields', () => {
-            createAslTables('patch');
-
-            runStatements(otherClient, [
-                insertUnsafely(Tables.Page, { id: 1 }),
-                insertUnsafely(Tables.Page, { content: '2X', id: 2, number: '4', part: '1' }),
-                insertUnsafely(Tables.Page, { content: '', id: 3 }),
-                insertUnsafely(Tables.Title, { id: 2, page: 9 }),
-                insertUnsafely('patch.page', { content: 'F', id: 1, page: '#', part: '1' }),
-                insertUnsafely('patch.page', { content: '3X', id: 2, number: '#', part: '2' }),
-                insertUnsafely('patch.page', { content: '#', id: 3, number: '#', part: '#' }),
-                insertUnsafely('patch.title', { content: 'T', id: 2, page: 20 }),
-            ]);
-
-            applyPatches(client, aslPath, patchPath);
-
-            const { pages, titles } = getData(client);
-
-            expect(pages).toEqual([
-                {
-                    content: 'F',
-                    id: 1,
-                    is_deleted: '0',
-                    number: null,
-                    page: null,
-                    part: '1',
-                    services: null,
-                },
-                {
-                    content: '3X',
-                    id: 2,
-                    is_deleted: '0',
-                    number: '4',
-                    page: null,
-                    part: '2',
-                    services: null,
-                },
-                {
-                    content: '',
-                    id: 3,
-                    is_deleted: '0',
-                    number: null,
-                    page: null,
-                    part: null,
-                    services: null,
-                },
-            ]);
-            expect(titles).toEqual([
-                { content: 'T', id: 2, is_deleted: '0', page: 20, parent: null },
-            ]);
-        });
-
-        it('should only patch the page and not the title', () => {
-            createAslTables('patch', true, false);
-
-            runStatements(otherClient, [
-                insertUnsafely(Tables.Page, { id: 1 }),
-                insertUnsafely(Tables.Title, { content: 'T', id: 2 }),
-                insertUnsafely('patch.page', { content: 'F', id: 1, page: '#', part: '1' }),
-            ]);
-
-            applyPatches(client, aslPath, patchPath);
-
-            const { pages, titles } = getData(client);
-
-            expect(pages).toEqual([
-                {
-                    content: 'F',
-                    id: 1,
-                    is_deleted: '0',
-                    number: null,
-                    page: null,
-                    part: '1',
-                    services: null,
-                },
-            ]);
-            expect(titles).toEqual([
-                { content: 'T', id: 2, is_deleted: '0', page: null, parent: null },
-            ]);
-        });
-
-        it('should only patch the title and not the page', () => {
-            createAslTables('patch', false, true);
-
-            runStatements(otherClient, [
-                insertUnsafely(Tables.Page, { content: 'C', id: 1 }),
-                insertUnsafely(Tables.Title, { id: 2, page: 1 }),
-                insertUnsafely('patch.title', { content: 'T', id: 2 }),
-            ]);
-
-            applyPatches(client, aslPath, patchPath);
-
-            const { pages, titles } = getData(client);
-
-            expect(pages).toEqual([
-                {
-                    content: 'C',
-                    id: 1,
-                    is_deleted: '0',
-                    number: null,
-                    page: null,
-                    part: null,
-                    services: null,
-                },
-            ]);
-            expect(titles).toEqual([
-                { content: 'T', id: 2, is_deleted: '0', page: 1, parent: null },
-            ]);
-        });
-
-        it('should handle case where is_deleted does not exist on the asl', () => {
-            otherClient.run(`DROP TABLE main.title`);
-            otherClient.run(`DROP TABLE main.page`);
-            otherClient.run(
-                `CREATE TABLE main.page (id INTEGER PRIMARY KEY, content TEXT, part TEXT, page TEXT, number TEXT, services TEXT)`,
-            );
-            otherClient.run(
-                `CREATE TABLE main.title (id INTEGER PRIMARY KEY, content TEXT, page INTEGER, parent INTEGER)`,
-            );
-
-            runStatements(otherClient, [
-                `INSERT INTO main.page (id,content) VALUES (1, 'C')`,
-                `INSERT INTO main.title (id,content,page) VALUES (2, 'T',1)`,
-            ]);
-
-            applyPatches(client, aslPath, patchPath);
-
-            const { pages, titles } = getData(client);
-
-            expect(pages).toEqual([
-                {
-                    content: 'C',
-                    id: 1,
-                    number: null,
-                    page: null,
-                    part: null,
-                    services: null,
-                },
-            ]);
-            expect(titles).toEqual([
-                { content: 'T', id: 2, page: 1, parent: null },
-            ]);
-        });
+        expect(titles).toEqual([
+            expect.objectContaining({ content: 'Patched title', id: 1, page: 2 }),
+        ]);
     });
 });

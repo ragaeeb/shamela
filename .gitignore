@@ -7,6 +7,7 @@
 /build
 /tmp
 dist
+storybook-static
 
 # misc
 .DS_Store

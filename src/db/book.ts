@@ -1,5 +1,5 @@
-import { Database } from 'bun:sqlite';
 import logger from '@/utils/logger';
+import type { SqliteDatabase } from './sqlite';
 import { type Deletable, type PageRow, Tables, type TitleRow } from './types';
 
 type Row = Record<string, any> & Deletable;
@@ -12,7 +12,7 @@ const PATCH_NOOP_VALUE = '#';
  * @param table - The table name to get info for
  * @returns Array of column information with name and type
  */
-const getTableInfo = (db: Database, table: Tables) => {
+const getTableInfo = (db: SqliteDatabase, table: Tables) => {
     return db.query(`PRAGMA table_info(${table})`).all() as { name: string; type: string }[];
 };
 
@@ -22,7 +22,7 @@ const getTableInfo = (db: Database, table: Tables) => {
  * @param table - The table name to check
  * @returns True if the table exists, false otherwise
  */
-const hasTable = (db: Database, table: Tables): boolean => {
+const hasTable = (db: SqliteDatabase, table: Tables): boolean => {
     const result = db.query(`SELECT name FROM sqlite_master WHERE type='table' AND name = ?1`).get(table) as
         | { name: string }
         | undefined;
@@ -35,7 +35,7 @@ const hasTable = (db: Database, table: Tables): boolean => {
  * @param table - The table name to read from
  * @returns Array of rows, or empty array if table doesn't exist
  */
-const readRows = (db: Database, table: Tables): Row[] => {
+const readRows = (db: SqliteDatabase, table: Tables): Row[] => {
     if (!hasTable(db, table)) {
         return [];
     }
@@ -139,7 +139,7 @@ const mergeRows = (baseRows: Row[], patchRows: Row[], columns: string[]): Row[] 
  * @param columns - Array of column names
  * @param rows - Array of row data to insert
  */
-const insertRows = (db: Database, table: Tables, columns: string[], rows: Row[]) => {
+const insertRows = (db: SqliteDatabase, table: Tables, columns: string[], rows: Row[]) => {
     if (rows.length === 0) {
         return;
     }
@@ -163,7 +163,7 @@ const insertRows = (db: Database, table: Tables, columns: string[], rows: Row[])
  * @param table - The table name to ensure schema for
  * @returns True if schema was successfully ensured, false otherwise
  */
-const ensureTableSchema = (target: Database, source: Database, table: Tables) => {
+const ensureTableSchema = (target: SqliteDatabase, source: SqliteDatabase, table: Tables) => {
     const row = source.query(`SELECT sql FROM sqlite_master WHERE type='table' AND name = ?1`).get(table) as
         | { sql: string }
         | undefined;
@@ -185,7 +185,7 @@ const ensureTableSchema = (target: Database, source: Database, table: Tables) =>
  * @param patch - Optional patch database containing updates (can be null)
  * @param table - The table name to copy and patch
  */
-const copyAndPatchTable = (target: Database, source: Database, patch: Database | null, table: Tables) => {
+const copyAndPatchTable = (target: SqliteDatabase, source: SqliteDatabase, patch: SqliteDatabase | null, table: Tables) => {
     if (!hasTable(source, table)) {
         logger.warn(`${table} table missing in source database`);
         return;
@@ -222,19 +222,11 @@ const copyAndPatchTable = (target: Database, source: Database, patch: Database |
  * @param aslDB - Path to the source ASL database file
  * @param patchDB - Path to the patch database file
  */
-export const applyPatches = (db: Database, aslDB: string, patchDB: string) => {
-    const source = new Database(aslDB);
-    const patch = new Database(patchDB);
-
-    try {
-        db.transaction(() => {
-            copyAndPatchTable(db, source, patch, Tables.Page);
-            copyAndPatchTable(db, source, patch, Tables.Title);
-        })();
-    } finally {
-        source.close();
-        patch.close();
-    }
+export const applyPatches = (db: SqliteDatabase, source: SqliteDatabase, patch: SqliteDatabase) => {
+    db.transaction(() => {
+        copyAndPatchTable(db, source, patch, Tables.Page);
+        copyAndPatchTable(db, source, patch, Tables.Title);
+    })();
 };
 
 /**
@@ -242,24 +234,18 @@ export const applyPatches = (db: Database, aslDB: string, patchDB: string) => {
  * @param db - The target database to copy data to
  * @param aslDB - Path to the source ASL database file
  */
-export const copyTableData = (db: Database, aslDB: string) => {
-    const source = new Database(aslDB);
-
-    try {
-        db.transaction(() => {
-            copyAndPatchTable(db, source, null, Tables.Page);
-            copyAndPatchTable(db, source, null, Tables.Title);
-        })();
-    } finally {
-        source.close();
-    }
+export const copyTableData = (db: SqliteDatabase, source: SqliteDatabase) => {
+    db.transaction(() => {
+        copyAndPatchTable(db, source, null, Tables.Page);
+        copyAndPatchTable(db, source, null, Tables.Title);
+    })();
 };
 
 /**
  * Creates the required tables (Page and Title) in the database with their schema.
  * @param db - The database instance to create tables in
  */
-export const createTables = (db: Database) => {
+export const createTables = (db: SqliteDatabase) => {
     db.run(
         `CREATE TABLE ${Tables.Page} (
             id INTEGER,
@@ -287,7 +273,7 @@ export const createTables = (db: Database) => {
  * @param db - The database instance
  * @returns Array of all pages
  */
-export const getAllPages = (db: Database) => {
+export const getAllPages = (db: SqliteDatabase) => {
     return db.query(`SELECT * FROM ${Tables.Page}`).all() as PageRow[];
 };
 
@@ -296,7 +282,7 @@ export const getAllPages = (db: Database) => {
  * @param db - The database instance
  * @returns Array of all titles
  */
-export const getAllTitles = (db: Database) => {
+export const getAllTitles = (db: SqliteDatabase) => {
     return db.query(`SELECT * FROM ${Tables.Title}`).all() as TitleRow[];
 };
 
@@ -305,6 +291,6 @@ export const getAllTitles = (db: Database) => {
  * @param db - The database instance
  * @returns Object containing arrays of pages and titles
  */
-export const getData = (db: Database) => {
+export const getData = (db: SqliteDatabase) => {
     return { pages: getAllPages(db), titles: getAllTitles(db) };
 };

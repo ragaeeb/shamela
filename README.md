@@ -12,7 +12,7 @@
 ![GitHub issues](https://img.shields.io/github/issues/ragaeeb/shamela)
 ![GitHub stars](https://img.shields.io/github/stars/ragaeeb/shamela?style=social)
 
-A `Node.js` library for accessing and downloading Maktabah Shamela v4 APIs. This library provides easy-to-use functions to interact with the Shamela API, download master and book databases, and retrieve book data programmatically.
+A universal TypeScript library for accessing and downloading Maktabah Shamela v4 APIs. The package runs in both Node.js and modern browsers, providing ergonomic helpers to interact with the Shamela API, download master and book databases, and retrieve book data programmatically.
 
 ## Table of Contents
 
@@ -67,6 +67,7 @@ Before using the library, you need to set up some environment variables for API 
 - `SHAMELA_API_KEY`: Your API key for accessing the Shamela API.
 - `SHAMELA_API_MASTER_PATCH_ENDPOINT`: The endpoint URL for the master database patches.
 - `SHAMELA_API_BOOKS_ENDPOINT`: The base endpoint URL for book-related API calls.
+- `SHAMELA_SQLJS_WASM_URL` (optional): Override the default CDN URL used to load the `sql.js` WebAssembly binary when running in the browser.
 
 You can set these variables in a `.env` file at the root of your project:
 
@@ -74,7 +75,27 @@ You can set these variables in a `.env` file at the root of your project:
 SHAMELA_API_KEY=your_api_key_here
 SHAMELA_API_MASTER_PATCH_ENDPOINT=https://shamela.ws/api/master_patch
 SHAMELA_API_BOOKS_ENDPOINT=https://shamela.ws/api/books
+# Optional when you host sql-wasm.wasm yourself
+# SHAMELA_SQLJS_WASM_URL=https://example.com/sql-wasm.wasm
 ```
+
+### Runtime configuration (browsers and serverless)
+
+When you cannot rely on environment variables—such as when running inside a browser, an edge worker, or a serverless function—use the `configure` helper to provide credentials at runtime:
+
+```ts
+import { configure } from 'shamela';
+
+configure({
+    apiKey: process.env.NEXT_PUBLIC_SHAMELA_KEY,
+    booksEndpoint: 'https://shamela.ws/api/books',
+    masterPatchEndpoint: 'https://shamela.ws/api/master_patch',
+    // Optional: host sql-wasm.wasm yourself to control caching/CDN placement
+    sqlJsWasmUrl: '/assets/sql-wasm.wasm',
+});
+```
+
+You can call `configure` multiple times—values are merged, so later calls update only the keys you pass in.
 
 ## Usage
 
@@ -401,9 +422,23 @@ The library provides comprehensive TypeScript types for all data structures:
 - `parseContentRobust(content: string)`: Converts Shamela page HTML into a list of structured lines while preserving title markers and punctuation.
 - `sanitizePageContent(content: string)`: Removes common footnote markers and normalises ligatures from Shamela pages.
 
+## Storybook demo
+
+An interactive Storybook playground (`stories/ShamelaDemo.stories.ts`) lets you validate API keys, endpoints, and book downloads directly in the browser. Start it locally with:
+
+```bash
+bun run storybook
+```
+
+To generate a static build:
+
+```bash
+bun run storybook:build
+```
+
 ## Testing
 
-The library includes comprehensive tests. To run them, ensure you have the necessary environment variables set, then execute:
+The library includes comprehensive tests powered by `bun test`. To run them, ensure you have the necessary environment variables set, then execute:
 
 ```bash
 bun test

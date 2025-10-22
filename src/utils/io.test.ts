@@ -1,23 +1,23 @@
-import { describe, expect, it } from 'bun:test';
-import { promises as fs } from 'fs';
+import { zipSync } from 'fflate';
+import { describe, expect, it, mock } from 'bun:test';
 
-import { createTempDir, unzipFromUrl } from './io';
+const zippedData = zipSync({ 'hello.txt': new TextEncoder().encode('hello world') });
 
-describe('io', () => {
-    describe('unzipFromUrl', () => {
-        it('should unzip the remote zip file into the folder', async () => {
-            const tempDir = await createTempDir('shamela_io_test');
+const httpsGetMock = mock(async () => new Uint8Array(zippedData));
 
-            try {
-                const files = await unzipFromUrl(
-                    'https://thetestdata.com/samplefiles/zip/Thetestdata_ZIP_5KB.zip',
-                    tempDir,
-                );
+mock.module('./network', () => ({
+    httpsGet: httpsGetMock,
+}));
 
-                expect(files).toHaveLength(10);
-            } finally {
-                await fs.rm(tempDir, { recursive: true });
-            }
-        }, 20000);
+import { unzipFromUrl } from './io';
+
+describe('io utilities', () => {
+    it('unzipFromUrl downloads and extracts entries', async () => {
+        const entries = await unzipFromUrl('https://example.com/file.zip');
+        expect(entries).toEqual([
+            { data: expect.any(Uint8Array), name: 'hello.txt' },
+        ]);
+        expect(new TextDecoder().decode(entries[0].data)).toBe('hello world');
+        expect(httpsGetMock).toHaveBeenCalledWith('https://example.com/file.zip');
     });
 });
