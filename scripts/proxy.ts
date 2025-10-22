@@ -117,7 +117,17 @@ const server = Bun.serve({
             });
 
             const proxiedHeaders = applyCors(new Headers(upstreamResponse.headers));
-            return new Response(upstreamResponse.body, {
+
+            if (request.method === 'HEAD') {
+                return new Response(null, {
+                    headers: proxiedHeaders,
+                    status: upstreamResponse.status,
+                    statusText: upstreamResponse.statusText,
+                });
+            }
+
+            const responseBuffer = await upstreamResponse.arrayBuffer();
+            return new Response(responseBuffer, {
                 headers: proxiedHeaders,
                 status: upstreamResponse.status,
                 statusText: upstreamResponse.statusText,
