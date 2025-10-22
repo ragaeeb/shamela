@@ -10,6 +10,7 @@ import type {
     BookData,
     DownloadBookOptions,
     DownloadMasterOptions,
+    MasterData,
     GetBookMetadataOptions,
     GetBookMetadataResponsePayload,
     GetMasterMetadataResponsePayload,
@@ -112,6 +113,46 @@ const setupBookDatabase = async (
         };
 
         return { cleanup, client };
+    } catch (error) {
+        client.close();
+        throw error;
+    }
+};
+
+const setupMasterDatabase = async (
+    masterMetadata?: GetMasterMetadataResponsePayload,
+): Promise<{ client: SqliteDatabase; cleanup: () => Promise<void>; version: number }> => {
+    logger.info('Setting up master database');
+
+    const masterResponse =
+        masterMetadata || (await getMasterMetadata(DEFAULT_MASTER_METADATA_VERSION));
+
+    logger.info(
+        `Downloading master database ${masterResponse.version} from: ${redactUrl(masterResponse.url)}`,
+    );
+    const sourceTables = await unzipFromUrl(fixHttpsProtocol(masterResponse.url));
+
+    logger.info(`sourceTables downloaded: ${sourceTables.map((table) => table.name).toString()}`);
+
+    if (!validateMasterSourceTables(sourceTables.map((table) => table.name))) {
+        logger.error(`Some source tables were not found: ${sourceTables.map((table) => table.name).toString()}`);
+        throw new Error('Expected tables not found!');
+    }
+
+    const client = await createDatabase();
+
+    try {
+        logger.info('Creating master tables');
+        createMasterTables(client);
+
+        logger.info('Copying data to master table');
+        await copyForeignMasterTableData(client, sourceTables.filter(isSqliteEntry));
+
+        const cleanup = async () => {
+            client.close();
+        };
+
+        return { cleanup, client, version: masterResponse.version };
     } catch (error) {
         client.close();
         throw error;
@@ -302,35 +343,16 @@ export const getCoverUrl = (bookId: number) => {
 export const downloadMasterDatabase = async (options: DownloadMasterOptions): Promise<string> => {
     logger.info(`downloadMasterDatabase ${JSON.stringify(options)}`);
 
-    const masterResponse: GetMasterMetadataResponsePayload =
-        options.masterMetadata || (await getMasterMetadata(DEFAULT_MASTER_METADATA_VERSION));
-
-    logger.info(`Downloading master database ${masterResponse.version} from: ${redactUrl(masterResponse.url)}`);
-    const sourceTables = await unzipFromUrl(fixHttpsProtocol(masterResponse.url));
-
-    logger.info(`sourceTables downloaded: ${sourceTables.map((table) => table.name).toString()}`);
-
-    if (!validateMasterSourceTables(sourceTables.map((table) => table.name))) {
-        logger.error(`Some source tables were not found: ${sourceTables.map((table) => table.name).toString()}`);
-        throw new Error('Expected tables not found!');
-    }
-
     if (!options.outputFile.path) {
         throw new Error('outputFile.path must be provided to determine output format');
     }
 
     const extension = getExtension(options.outputFile.path);
-    const client = await createDatabase();
+    const { client, cleanup, version } = await setupMasterDatabase(options.masterMetadata);
 
     try {
-        logger.info(`Creating tables`);
-        createMasterTables(client);
-
-        logger.info(`Copying data to master table`);
-        await copyForeignMasterTableData(client, sourceTables.filter(isSqliteEntry));
-
         if (extension === '.json') {
-            const result = await getMasterData(client);
+            const result = getMasterData(client, version);
             await writeOutput(options.outputFile, JSON.stringify(result, null, 2));
         } else if (extension === '.db' || extension === '.sqlite') {
             await writeOutput(options.outputFile, client.export());
@@ -338,7 +360,7 @@ export const downloadMasterDatabase = async (options: DownloadMasterOptions): Pr
             throw new Error(`Unsupported output extension: ${extension}`);
         }
     } finally {
-        client.close();
+        await cleanup();
     }
 
     return options.outputFile.path;
@@ -377,6 +399,27 @@ export const getBook = async (id: number): Promise<BookData> => {
         };
 
         return result;
+    } finally {
+        await cleanup();
+    }
+};
+
+/**
+ * Retrieves complete master data including authors, books, and categories.
+ *
+ * This convenience function downloads the master database archive, builds an in-memory
+ * SQLite database, and returns structured data for immediate consumption alongside
+ * the version number of the snapshot.
+ *
+ * @returns A promise that resolves to the complete master dataset and its version
+ */
+export const getMaster = async (): Promise<MasterData> => {
+    logger.info('getMaster');
+
+    const { client, cleanup, version } = await setupMasterDatabase();
+
+    try {
+        return getMasterData(client, version);
     } finally {
         await cleanup();
     }

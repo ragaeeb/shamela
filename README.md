@@ -26,11 +26,13 @@ A universal TypeScript library for accessing and downloading Maktabah Shamela v4
         - [getBookMetadata](#getbookmetadata)
         - [downloadBook](#downloadbook)
         - [getBook](#getbook)
+        - [getMaster](#getmaster)
         - [getCoverUrl](#getcoverurl)
 - [Examples](#examples)
     - [Downloading the Master Database](#downloading-the-master-database)
     - [Downloading a Book](#downloading-a-book)
     - [Retrieving Book Data](#retrieving-book-data)
+    - [Retrieving Master Data in memory](#retrieving-master-data-in-memory)
     - [Getting Book Cover URLs](#getting-book-cover-urls)
 - [Data Structures](#data-structures)
 - [Testing](#testing)
@@ -92,10 +94,14 @@ configure({
     masterPatchEndpoint: 'https://shamela.ws/api/master_patch',
     // Optional: host sql-wasm.wasm yourself to control caching/CDN placement
     sqlJsWasmUrl: '/assets/sql-wasm.wasm',
+    // Optional: integrate with your application's logging system
+    logger: console,
 });
 ```
 
 You can call `configure` multiple times—values are merged, so later calls update only the keys you pass in.
+
+The optional `logger` must expose `debug`, `info`, `warn`, and `error` methods. When omitted, the library stays silent by default.
 
 ## Usage
 
@@ -110,6 +116,7 @@ import {
     getBookMetadata,
     downloadBook,
     getBook,
+    getMaster,
     getCoverUrl,
 } from 'shamela';
 ```
@@ -260,6 +267,26 @@ console.log(bookData.titles?.length); // Number of title entries
 console.log(bookData.pages[0].content); // Content of the first page
 ```
 
+#### getMaster
+
+Retrieves the entire master dataset (authors, books, categories) as a JavaScript object, including the version number that the
+API reports for the snapshot.
+
+```typescript
+getMaster(): Promise<MasterData>
+```
+
+**Returns:** Promise that resolves to the complete master dataset with version metadata
+
+**Example:**
+
+```javascript
+const masterData = await getMaster();
+console.log(masterData.version); // Version of the downloaded master database
+console.log(masterData.books.length); // Number of books available
+console.log(masterData.categories.length); // Number of categories available
+```
+
 #### getCoverUrl
 
 Generates the URL for a book's cover image.
@@ -299,6 +326,7 @@ import { downloadMasterDatabase } from 'shamela';
             outputFile: { path: './shamela_master.json' },
         });
         console.log(`Master data exported to: ${jsonPath}`);
+        console.log('The JSON file includes authors, books, categories, and the master version number.');
     } catch (error) {
         console.error('Error downloading master database:', error);
     }
@@ -360,6 +388,24 @@ import { getBook } from 'shamela';
 })();
 ```
 
+### Retrieving Master Data in memory
+
+```javascript
+import { getMaster } from 'shamela';
+
+(async () => {
+    try {
+        const masterData = await getMaster();
+
+        console.log(`Master snapshot version: ${masterData.version}`);
+        console.log(`Master dataset includes ${masterData.books.length} books`);
+        console.log(`Master dataset includes ${masterData.categories.length} categories`);
+    } catch (error) {
+        console.error('Error retrieving master data:', error);
+    }
+})();
+```
+
 ### Getting Book Cover URLs
 
 ```javascript
@@ -400,6 +446,7 @@ The library provides comprehensive TypeScript types for all data structures:
 - `authors`: Raw entries from the `author` table with the original `biography`, `death_text`, `death_number`, `is_deleted`, and `name` fields.
 - `books`: Raw entries from the `book` table containing the original metadata columns (`author`, `bibliography`, `category`, `date`, `hint`, `major_release`, `metadata`, `minor_release`, `pdf_links`, `printed`, `type`, and `is_deleted`).
 - `categories`: Raw entries from the `category` table including `is_deleted`, `order`, and `name`.
+- `version`: Version number reported by the Shamela API for the downloaded master database.
 
 ### Page
 
@@ -448,12 +495,6 @@ For end-to-end tests:
 
 ```bash
 bun run e2e
-```
-
-For CI environment:
-
-```bash
-bun run e2e:ci
 ```
 
 ## License

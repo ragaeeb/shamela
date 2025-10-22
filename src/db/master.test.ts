@@ -84,10 +84,11 @@ describe('master database helpers', () => {
 
         await copyForeignMasterTableData(client, [books, categories, authors]);
 
-        const data = getData(client);
+        const data = getData(client, 7);
         expect(data.authors).toHaveLength(1);
         expect(data.books).toHaveLength(1);
         expect(data.categories).toHaveLength(1);
+        expect(data.version).toBe(7);
     });
 
     it('preserves deletion flags from source tables', async () => {
@@ -97,9 +98,10 @@ describe('master database helpers', () => {
 
         await copyForeignMasterTableData(client, [books, categories, authors]);
 
-        const data = getData(client);
+        const data = getData(client, 3);
         expect(data.authors[0].is_deleted).toBe('1');
         expect(data.books[0].is_deleted).toBe('1');
         expect(data.categories[0].is_deleted).toBe('1');
+        expect(data.version).toBe(3);
     });
 });

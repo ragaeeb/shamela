@@ -1,21 +1,52 @@
-type LogFunction = (...args: unknown[]) => void;
+export type LogFunction = (...args: unknown[]) => void;
 
-interface Logger {
+export interface Logger {
     debug: LogFunction;
     error: LogFunction;
     info: LogFunction;
     warn: LogFunction;
 }
 
-const SILENT_LOGGER = { debug: () => {}, error: () => {}, info: () => {}, warn: () => {} };
-let logger: Logger = SILENT_LOGGER;
+export const SILENT_LOGGER: Logger = { debug: () => {}, error: () => {}, info: () => {}, warn: () => {} };
 
-export const setLogger = (newLogger: Logger = SILENT_LOGGER) => {
-    if (!newLogger.debug || !newLogger.error || !newLogger.info) {
-        throw new Error('Logger must implement debug, error, and info methods');
+let currentLogger: Logger = SILENT_LOGGER;
+
+export const configureLogger = (newLogger?: Logger) => {
+    if (!newLogger) {
+        currentLogger = SILENT_LOGGER;
+        return;
     }
 
-    logger = newLogger;
+    const requiredMethods: Array<keyof Logger> = ['debug', 'error', 'info', 'warn'];
+    const missingMethod = requiredMethods.find((method) => typeof newLogger[method] !== 'function');
+
+    if (missingMethod) {
+        throw new Error('Logger must implement debug, error, info, and warn methods');
+    }
+
+    currentLogger = newLogger;
 };
 
-export { logger as default };
+export const getLogger = () => currentLogger;
+
+export const resetLogger = () => {
+    currentLogger = SILENT_LOGGER;
+};
+
+const loggerProxy: Logger = new Proxy(
+    {} as Logger,
+    {
+        get: (_target, property: keyof Logger) => {
+            const activeLogger = getLogger();
+            const value = activeLogger[property];
+
+            if (typeof value === 'function') {
+                return (...args: unknown[]) => (value as LogFunction).apply(activeLogger, args);
+            }
+
+            return value;
+        },
+    },
+) as Logger;
+
+export default loggerProxy;

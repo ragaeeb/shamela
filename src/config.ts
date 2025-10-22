@@ -1,3 +1,5 @@
+import type { Logger } from './utils/logger.js';
+import { configureLogger, resetLogger } from './utils/logger.js';
 import type { ShamelaConfig, ShamelaConfigKey } from './types';
 
 let runtimeConfig: Partial<ShamelaConfig> = {};
@@ -24,8 +26,16 @@ const readEnv = (key: ShamelaConfigKey): string | undefined => {
     return undefined;
 };
 
-export const configure = (config: Partial<ShamelaConfig>) => {
-    runtimeConfig = { ...runtimeConfig, ...config };
+export type ConfigureOptions = Partial<ShamelaConfig> & { logger?: Logger };
+
+export const configure = (config: ConfigureOptions) => {
+    const { logger, ...options } = config;
+
+    if ('logger' in config) {
+        configureLogger(logger);
+    }
+
+    runtimeConfig = { ...runtimeConfig, ...options };
 };
 
 export const getConfigValue = (key: ShamelaConfigKey) => {
@@ -52,4 +62,5 @@ export const requireConfigValue = (key: ShamelaConfigKey) => {
 
 export const resetConfig = () => {
     runtimeConfig = {};
+    resetLogger();
 };

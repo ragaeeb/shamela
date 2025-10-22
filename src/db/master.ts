@@ -198,6 +198,11 @@ export const getAllCategories = (db: SqliteDatabase) => {
  * @param db - The database instance
  * @returns Object containing arrays of authors, books, and categories
  */
-export const getData = (db: SqliteDatabase) => {
-    return { authors: getAllAuthors(db), books: getAllBooks(db), categories: getAllCategories(db) } as MasterData;
+export const getData = (db: SqliteDatabase, version: number) => {
+    return {
+        authors: getAllAuthors(db),
+        books: getAllBooks(db),
+        categories: getAllCategories(db),
+        version,
+    } satisfies MasterData;
 };

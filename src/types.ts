@@ -53,6 +53,8 @@ export type MasterData = {
     books: Book[];
     /** Array of all categories */
     categories: Category[];
+    /** Version number for the downloaded master database */
+    version: number;
 };
 
 /**
