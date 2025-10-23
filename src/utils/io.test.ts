@@ -1,23 +1,28 @@
-import { describe, expect, it } from 'bun:test';
-import { promises as fs } from 'fs';
+import { zipSync } from 'fflate';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
-import { createTempDir, unzipFromUrl } from './io';
+import { unzipFromUrl } from './io';
 
-describe('io', () => {
-    describe('unzipFromUrl', () => {
-        it('should unzip the remote zip file into the folder', async () => {
-            const tempDir = await createTempDir('shamela_io_test');
+const zippedData = zipSync({ 'hello.txt': new TextEncoder().encode('hello world') });
+const networkModule = await import('./network.ts');
 
-            try {
-                const files = await unzipFromUrl(
-                    'https://thetestdata.com/samplefiles/zip/Thetestdata_ZIP_5KB.zip',
-                    tempDir,
-                );
+describe('io utilities', () => {
+    let httpsGetSpy: ReturnType<typeof spyOn<typeof networkModule, 'httpsGet'>>;
 
-                expect(files).toHaveLength(10);
-            } finally {
-                await fs.rm(tempDir, { recursive: true });
-            }
-        }, 20000);
+    beforeEach(() => {
+        httpsGetSpy = spyOn(networkModule, 'httpsGet').mockResolvedValue(
+            new Uint8Array(zippedData) as unknown as Awaited<ReturnType<typeof networkModule.httpsGet>>,
+        );
+    });
+
+    afterEach(() => {
+        httpsGetSpy.mockRestore();
+    });
+
+    it('unzipFromUrl downloads and extracts entries', async () => {
+        const entries = await unzipFromUrl('https://example.com/file.zip');
+        expect(entries).toEqual([{ data: expect.any(Uint8Array), name: 'hello.txt' }]);
+        expect(new TextDecoder().decode(entries[0].data)).toBe('hello world');
+        expect(httpsGetSpy).toHaveBeenCalledWith('https://example.com/file.zip');
     });
 });

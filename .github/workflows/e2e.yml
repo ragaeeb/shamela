@@ -25,7 +25,7 @@ jobs:
               run: bun run build
 
             - name: E2E
-              run: bun run e2e:ci
+              run: bun test e2e
               env:
                   SHAMELA_API_KEY: ${{secrets.SHAMELA_API_KEY}}
                   SHAMELA_API_MASTER_PATCH_ENDPOINT: ${{secrets.SHAMELA_API_MASTER_PATCH_ENDPOINT}}

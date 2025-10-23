@@ -1,102 +1,110 @@
-import { createWriteStream, promises as fs } from 'node:fs';
-import type { IncomingMessage } from 'node:http';
-import https from 'node:https';
-import os from 'node:os';
-import path from 'node:path';
-import { pipeline } from 'node:stream/promises';
-import unzipper, { type Entry } from 'unzipper';
+import { unzipSync } from 'fflate';
+
+import type { OutputOptions } from '@/types';
+import logger from './logger';
+import { httpsGet } from './network';
 
 /**
- * Creates a temporary directory with an optional prefix.
- * @param {string} [prefix='shamela'] - The prefix to use for the temporary directory name
- * @returns {Promise<string>} A promise that resolves to the path of the created temporary directory
+ * Representation of an extracted archive entry containing raw bytes and filename metadata.
  */
-export const createTempDir = async (prefix = 'shamela') => {
-    const tempDirBase = path.join(os.tmpdir(), prefix);
-    return fs.mkdtemp(tempDirBase);
+export type UnzippedEntry = { name: string; data: Uint8Array };
+
+const isNodeEnvironment = typeof process !== 'undefined' && Boolean(process?.versions?.node);
+
+/**
+ * Dynamically imports the Node.js fs/promises module, ensuring the runtime supports file operations.
+ *
+ * @throws {Error} When executed in a non-Node.js environment
+ * @returns The fs/promises module when available
+ */
+const ensureNodeFs = async () => {
+    if (!isNodeEnvironment) {
+        throw new Error('File system operations are only supported in Node.js environments');
+    }
+
+    return import('node:fs/promises');
 };
 
 /**
- * Checks if a file exists at the given path.
- * @param {string} path - The file path to check
- * @returns {Promise<boolean>} A promise that resolves to true if the file exists, false otherwise
+ * Ensures the directory for a file path exists, creating parent folders as needed.
+ *
+ * @param filePath - The target file path whose directory should be created
+ * @returns The fs/promises module instance
  */
-export const fileExists = async (filePath: string) => !!(await fs.stat(filePath).catch(() => false));
+const ensureDirectory = async (filePath: string) => {
+    const [fs, path] = await Promise.all([ensureNodeFs(), import('node:path')]);
+    const directory = path.dirname(filePath);
+    await fs.mkdir(directory, { recursive: true });
+    return fs;
+};
 
 /**
- * Downloads and extracts a ZIP file from a given URL without loading the entire file into memory.
- * @param {string} url - The URL of the ZIP file to download and extract
- * @param {string} outputDir - The directory where the files should be extracted
- * @returns {Promise<string[]>} A promise that resolves with the list of all extracted file paths
- * @throws {Error} When the download fails, extraction fails, or other network/filesystem errors occur
+ * Downloads a ZIP archive from the given URL and returns its extracted entries.
+ *
+ * @param url - The remote URL referencing a ZIP archive
+ * @returns A promise resolving to the extracted archive entries
  */
-export async function unzipFromUrl(url: string, outputDir: string): Promise<string[]> {
-    const extractedFiles: string[] = [];
+export const unzipFromUrl = async (url: string): Promise<UnzippedEntry[]> => {
+    const binary = await httpsGet<Uint8Array>(url);
+    const byteLength =
+        binary instanceof Uint8Array
+            ? binary.length
+            : binary && typeof (binary as ArrayBufferLike).byteLength === 'number'
+              ? (binary as ArrayBufferLike).byteLength
+              : 0;
+    logger.debug('unzipFromUrl:bytes', byteLength);
 
-    try {
-        // Make HTTPS request and get the response stream
-        const response = await new Promise<IncomingMessage>((resolve, reject) => {
-            https
-                .get(url, (res) => {
-                    if (res.statusCode !== 200) {
-                        reject(new Error(`Failed to download ZIP file: ${res.statusCode} ${res.statusMessage}`));
-                    } else {
-                        resolve(res);
-                    }
-                })
-                .on('error', (err) => {
-                    reject(new Error(`HTTPS request failed: ${err.message}`));
-                });
-        });
+    return new Promise((resolve, reject) => {
+        const dataToUnzip = binary instanceof Uint8Array ? binary : new Uint8Array(binary as ArrayBufferLike);
 
-        // Process the ZIP file using unzipper.Extract with proper event handling
-        await new Promise<void>((resolve, reject) => {
-            const unzipStream = unzipper.Parse();
-            const entryPromises: Promise<void>[] = [];
+        try {
+            const result = unzipSync(dataToUnzip);
+            const entries = Object.entries(result).map(([name, data]) => ({ data, name }));
+            logger.debug(
+                'unzipFromUrl:entries',
+                entries.map((entry) => entry.name),
+            );
+            resolve(entries);
+        } catch (error: any) {
+            reject(new Error(`Error processing URL: ${error.message}`));
+        }
+    });
+};
 
-            unzipStream.on('entry', (entry: Entry) => {
-                const entryPromise = (async () => {
-                    const filePath = path.join(outputDir, entry.path);
+/**
+ * Creates a unique temporary directory with the provided prefix.
+ *
+ * @param prefix - Optional prefix for the generated directory name
+ * @returns The created temporary directory path
+ */
+export const createTempDir = async (prefix = 'shamela') => {
+    const [fs, os, path] = await Promise.all([ensureNodeFs(), import('node:os'), import('node:path')]);
+    const base = path.join(os.tmpdir(), prefix);
+    return fs.mkdtemp(base);
+};
 
-                    if (entry.type === 'Directory') {
-                        // Ensure the directory exists
-                        await fs.mkdir(filePath, { recursive: true });
-                        entry.autodrain();
-                    } else {
-                        // Ensure the parent directory exists
-                        const dir = path.dirname(filePath);
-                        await fs.mkdir(dir, { recursive: true });
-
-                        // Create write stream and pipe entry to it
-                        const writeStream = createWriteStream(filePath);
-                        await pipeline(entry, writeStream);
-                        extractedFiles.push(filePath);
-                    }
-                })();
-
-                entryPromises.push(entryPromise);
-            });
-
-            unzipStream.on('finish', async () => {
-                try {
-                    // Wait for all entries to be processed
-                    await Promise.all(entryPromises);
-                    resolve();
-                } catch (error) {
-                    reject(error);
-                }
-            });
-
-            unzipStream.on('error', (error) => {
-                reject(new Error(`Error during extraction: ${error.message}`));
-            });
-
-            // Pipe the response to the unzip stream
-            response.pipe(unzipStream);
-        });
-
-        return extractedFiles;
-    } catch (error: any) {
-        throw new Error(`Error processing URL: ${error.message}`);
+/**
+ * Writes output data either using a provided writer function or to a file path.
+ *
+ * @param output - The configured output destination or writer
+ * @param payload - The payload to persist (string or binary)
+ * @throws {Error} When neither a writer nor file path is provided
+ */
+export const writeOutput = async (output: OutputOptions, payload: string | Uint8Array) => {
+    if (output.writer) {
+        await output.writer(payload);
+        return;
     }
-}
+
+    if (!output.path) {
+        throw new Error('Output options must include either a writer or a path');
+    }
+
+    const fs = await ensureDirectory(output.path);
+
+    if (typeof payload === 'string') {
+        await fs.writeFile(output.path, payload, 'utf-8');
+    } else {
+        await fs.writeFile(output.path, payload);
+    }
+};

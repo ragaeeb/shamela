@@ -1,5 +1,4 @@
-import path from 'node:path';
-import process from 'node:process';
+import { getConfig } from '@/config';
 
 const SOURCE_TABLES = ['author.sqlite', 'book.sqlite', 'category.sqlite'];
 
@@ -8,11 +7,14 @@ const SOURCE_TABLES = ['author.sqlite', 'book.sqlite', 'category.sqlite'];
  * @throws {Error} When any required environment variable is missing
  */
 export const validateEnvVariables = () => {
+    const { apiKey, booksEndpoint, masterPatchEndpoint } = getConfig();
     const envVariablesNotFound = [
-        'SHAMELA_API_MASTER_PATCH_ENDPOINT',
-        'SHAMELA_API_BOOKS_ENDPOINT',
-        'SHAMELA_API_KEY',
-    ].filter((key) => !process.env[key]);
+        ['apiKey', apiKey],
+        ['booksEndpoint', booksEndpoint],
+        ['masterPatchEndpoint', masterPatchEndpoint],
+    ]
+        .filter(([, value]) => !value)
+        .map(([key]) => key);
 
     if (envVariablesNotFound.length) {
         throw new Error(`${envVariablesNotFound.join(', ')} environment variables not set`);
@@ -25,6 +27,10 @@ export const validateEnvVariables = () => {
  * @returns {boolean} True if all required source tables (author.sqlite, book.sqlite, category.sqlite) are present
  */
 export const validateMasterSourceTables = (sourceTablePaths: string[]) => {
-    const sourceTableNames = new Set(sourceTablePaths.map((tablePath) => path.basename(tablePath).toLowerCase()));
+    const sourceTableNames = new Set(
+        sourceTablePaths
+            .map((tablePath) => tablePath.match(/[^\\/]+$/)?.[0] ?? tablePath)
+            .map((name) => name.toLowerCase()),
+    );
     return SOURCE_TABLES.every((table) => sourceTableNames.has(table.toLowerCase()));
 };

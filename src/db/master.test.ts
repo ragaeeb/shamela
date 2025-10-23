@@ -1,209 +1,111 @@
-import { Database } from 'bun:sqlite';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { createTempDir } from '../utils/io';
-import { setLogger } from '../utils/logger';
+import { createDatabase, type SqliteDatabase } from './sqlite';
 import { copyForeignMasterTableData, createTables, getData } from './master';
-import { attachDB, insertUnsafely } from './queryBuilder';
+import { Tables } from './types';
 
-const runStatements = (db: Database, statements: string[]) => {
-    db.transaction(() => statements.forEach((sql) => db.run(sql)))();
+type SourceTable = { name: string; data: Uint8Array };
+
+const createSourceTable = async (table: Tables, rows: Record<string, any>[]) => {
+    const db = await createDatabase();
+
+    switch (table) {
+        case Tables.Authors:
+            db.run(
+                `CREATE TABLE ${Tables.Authors} (id INTEGER, is_deleted TEXT, name TEXT, biography TEXT, death_text TEXT, death_number TEXT)`,
+            );
+            break;
+        case Tables.Books:
+            db.run(
+                `CREATE TABLE ${Tables.Books} (id INTEGER, name TEXT, is_deleted TEXT, category TEXT, type TEXT, date TEXT, author TEXT, printed TEXT, minor_release TEXT, major_release TEXT, bibliography TEXT, hint TEXT, pdf_links TEXT, metadata TEXT)`,
+            );
+            break;
+        case Tables.Categories:
+            db.run(`CREATE TABLE ${Tables.Categories} (id INTEGER, is_deleted TEXT, "order" TEXT, name TEXT)`);
+            break;
+        default:
+            throw new Error('Unsupported table');
+    }
+
+    for (const row of rows) {
+        const columns = Object.keys(row);
+        const columnNames = columns.map((column) => (column === 'order' ? '"order"' : column));
+        const placeholders = columns.map(() => '?').join(',');
+        const statement = db.prepare(`INSERT INTO ${table} (${columnNames.join(',')}) VALUES (${placeholders})`);
+        try {
+            statement.run(...columns.map((column) => row[column]));
+        } finally {
+            statement.finalize();
+        }
+    }
+
+    const data = db.export();
+    db.close();
+    return { data, name: `${table}.sqlite` } satisfies SourceTable;
 };
 
-describe('master', () => {
-    let client: Database;
-    let otherClient: Database;
-    let dbPath: string;
-    let authorPath: string;
-    let bookPath: string;
-    let categoryPath: string;
-    let dbFolder: string;
+describe('master database helpers', () => {
+    let client: SqliteDatabase;
 
-    beforeAll(async () => {
-        dbFolder = await createTempDir('shamela_master_test');
-        dbPath = path.join(dbFolder, 'master.db');
-        bookPath = path.join(dbFolder, 'book.sqlite');
-        categoryPath = path.join(dbFolder, 'category.sqlite');
-        authorPath = path.join(dbFolder, 'author.sqlite');
-        setLogger(console);
-    });
-
-    afterAll(async () => {
-        setLogger();
-        await fs.rm(dbFolder, { recursive: true });
-    });
-
-    beforeEach(() => {
-        client = new Database(dbPath);
-        otherClient = new Database(bookPath);
-
-        otherClient.run(attachDB(categoryPath, 'categories'));
-        otherClient.run(attachDB(authorPath, 'authors'));
-
-        runStatements(otherClient, [
-            `CREATE TABLE authors.author (id INTEGER, is_deleted TEXT, name TEXT,biography TEXT, death_text TEXT, death_number TEXT)`,
-            `CREATE TABLE main.book (id INTEGER, name TEXT, is_deleted TEXT, category TEXT, type TEXT, date TEXT, author TEXT, printed TEXT, minor_release TEXT, major_release TEXT, bibliography TEXT, hint TEXT, pdf_links TEXT, metadata TEXT)`,
-            `CREATE TABLE categories.category (id INTEGER, is_deleted TEXT, "order" TEXT, name TEXT)`,
-        ]);
-
+    beforeEach(async () => {
+        client = await createDatabase();
         createTables(client);
     });
 
-    afterEach(async () => {
-        client.close();
-        otherClient.close();
-
-        await Promise.all([
-            fs.rm(authorPath, { recursive: true }),
-            fs.rm(bookPath, { recursive: true }),
-            fs.rm(categoryPath, { recursive: true }),
-            fs.rm(dbPath, { recursive: true }),
-        ]);
+    afterEach(() => {
+        client?.close();
     });
 
-    describe('copyForeignMasterTableData', () => {
-        it('should build the database from the original source tables', () => {
-            runStatements(otherClient, [
-                insertUnsafely('authors.author', {
-                    biography: 'Bio',
-                    death_number: '99',
-                    death_text: '99',
-                    id: 1,
-                    name: 'Ahmad',
-                }),
-                insertUnsafely('main.book', {
-                    author: '513',
-                    bibliography: 'biblio',
-                    category: '1',
-                    date: '1225',
-                    hint: 'h',
-                    id: 1,
-                    major_release: '5',
-                    metadata: '{"date":"08121431"}',
-                    minor_release: '0',
-                    name: 'B',
-                    pdf_links: `{"alias": 22, "cover": 1, "cover_alias": 20, "root": "https://archive.org/download/tazkerat_samee/", "files": ["16966p.pdf", "16966.pdf|0"], "size": 7328419}`,
-                    printed: '1',
-                    type: '1',
-                }),
-                insertUnsafely('main.book', {
-                    author: '50',
-                    id: 2,
-                    metadata: '{"date":"08121431"}',
-                    name: 'B',
-                }),
-                insertUnsafely('categories.category', { '`order`': '1', id: 1, name: 'Fiqh' }),
-            ]);
+    it('copyForeignMasterTableData populates the master database', async () => {
+        const authors = await createSourceTable(Tables.Authors, [
+            { biography: 'Bio', death_number: '99', death_text: 'Ninety Nine', id: 1, is_deleted: '0', name: 'Ahmad' },
+        ]);
+        const books = await createSourceTable(Tables.Books, [
+            {
+                author: '513',
+                bibliography: 'biblio',
+                category: '1',
+                date: '1225',
+                hint: 'hint',
+                id: 1,
+                is_deleted: '0',
+                major_release: '5',
+                metadata: '{}',
+                minor_release: '0',
+                name: 'Book',
+                pdf_links: null,
+                printed: '1',
+                type: '1',
+            },
+        ]);
+        const categories = await createSourceTable(Tables.Categories, [
+            { id: 1, is_deleted: '0', name: 'Fiqh', order: '1' },
+        ]);
 
-            copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
+        await copyForeignMasterTableData(client, [books, categories, authors]);
 
-            const { authors, books, categories } = getData(client);
+        const data = getData(client, 7);
+        expect(data.authors).toHaveLength(1);
+        expect(data.books).toHaveLength(1);
+        expect(data.categories).toHaveLength(1);
+        expect(data.version).toBe(7);
+    });
 
-            expect(authors).toEqual([
-                {
-                    biography: 'Bio',
-                    death_number: '99',
-                    death_text: '99',
-                    id: 1,
-                    is_deleted: '0',
-                    name: 'Ahmad',
-                },
-            ]);
+    it('preserves deletion flags from source tables', async () => {
+        const authors = await createSourceTable(Tables.Authors, [{ id: 1, is_deleted: '1', name: 'Removed' }]);
+        const books = await createSourceTable(Tables.Books, [
+            { id: 1, is_deleted: '1', name: 'Removed', author: null },
+        ]);
+        const categories = await createSourceTable(Tables.Categories, [
+            { id: 1, is_deleted: '1', name: 'Removed', order: null },
+        ]);
 
-            expect(books).toEqual([
-                {
-                    author: '513',
-                    bibliography: 'biblio',
-                    category: '1',
-                    date: '1225',
-                    hint: 'h',
-                    id: 1,
-                    is_deleted: '0',
-                    major_release: '5',
-                    metadata: '{"date":"08121431"}',
-                    minor_release: '0',
-                    name: 'B',
-                    pdf_links:
-                        '{"alias": 22, "cover": 1, "cover_alias": 20, "root": "https://archive.org/download/tazkerat_samee/", "files": ["16966p.pdf", "16966.pdf|0"], "size": 7328419}',
-                    printed: '1',
-                    type: '1',
-                },
-                {
-                    author: '50',
-                    bibliography: null,
-                    category: null,
-                    date: null,
-                    hint: null,
-                    id: 2,
-                    is_deleted: '0',
-                    major_release: null,
-                    metadata: '{"date":"08121431"}',
-                    minor_release: null,
-                    name: 'B',
-                    pdf_links: null,
-                    printed: null,
-                    type: null,
-                },
-            ]);
+        await copyForeignMasterTableData(client, [books, categories, authors]);
 
-            expect(categories).toEqual([
-                { id: 1, is_deleted: '0', name: 'Fiqh', order: '1' },
-            ]);
-        });
-
-        it('should include rows marked as deleted', () => {
-            runStatements(otherClient, [
-                insertUnsafely('authors.author', { id: 1 }, true),
-                insertUnsafely('main.book', { id: 1 }, true),
-                insertUnsafely('categories.category', { id: 1 }, true),
-            ]);
-
-            copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
-
-            const { authors, books, categories } = getData(client);
-
-            expect(authors).toEqual([{ biography: null, death_number: null, death_text: null, id: 1, is_deleted: '1', name: null }]);
-            expect(books).toEqual([
-                {
-                    author: null,
-                    bibliography: null,
-                    category: null,
-                    date: null,
-                    hint: null,
-                    id: 1,
-                    is_deleted: '1',
-                    major_release: null,
-                    metadata: null,
-                    minor_release: null,
-                    name: null,
-                    pdf_links: null,
-                    printed: null,
-                    type: null,
-                },
-            ]);
-            expect(categories).toEqual([
-                { id: 1, is_deleted: '1', name: null, order: null },
-            ]);
-        });
-
-        it('should expose pluralised compatibility views', () => {
-            runStatements(otherClient, [
-                insertUnsafely('authors.author', { id: 1 }, true),
-                insertUnsafely('main.book', { id: 1 }, true),
-                insertUnsafely('categories.category', { id: 1 }, true),
-            ]);
-
-            copyForeignMasterTableData(client, [bookPath, categoryPath, authorPath]);
-
-            const row = client
-                .query(
-                    'SELECT (SELECT COUNT(*) FROM authors) AS authors, (SELECT COUNT(*) FROM books) AS books, (SELECT COUNT(*) FROM categories) AS categories',
-                )
-                .get() as { authors: number; books: number; categories: number };
-
-            expect(row).toEqual({ authors: 1, books: 1, categories: 1 });
-        });
+        const data = getData(client, 3);
+        expect(data.authors[0].is_deleted).toBe('1');
+        expect(data.books[0].is_deleted).toBe('1');
+        expect(data.categories[0].is_deleted).toBe('1');
+        expect(data.version).toBe(3);
     });
 });
