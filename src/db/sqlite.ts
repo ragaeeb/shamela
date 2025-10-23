@@ -1,6 +1,6 @@
 import initSqlJs, { type Database as SqlJsDatabase, type SqlJsStatic, type Statement } from 'sql.js';
 
-import { getConfigValue } from '../config.js';
+import { getConfigValue } from '../config';
 
 /**
  * Represents a row returned from a SQLite query as a generic key-value object.

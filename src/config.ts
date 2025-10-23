@@ -1,5 +1,5 @@
-import type { Logger } from './utils/logger.js';
-import { configureLogger, resetLogger } from './utils/logger.js';
+import type { Logger } from './utils/logger';
+import { configureLogger, resetLogger } from './utils/logger';
 import type { ShamelaConfig, ShamelaConfigKey } from './types';
 
 /**
@@ -28,21 +28,20 @@ const isProcessAvailable = typeof process !== 'undefined' && Boolean(process?.en
  * @param key - The configuration key to resolve
  * @returns The resolved configuration value if present
  */
-const readEnv = (key: ShamelaConfigKey): string | undefined => {
-    if (key === 'fetchImplementation') {
-        return undefined;
-    }
+const readEnv = <Key extends Exclude<ShamelaConfigKey, 'fetchImplementation'>>(key: Key) => {
+    const runtimeValue = runtimeConfig[key];
 
-    if (runtimeConfig[key]) {
-        return runtimeConfig[key];
+    if (runtimeValue !== undefined) {
+        return runtimeValue as ShamelaConfig[Key];
     }
 
     const envKey = ENV_MAP[key];
+
     if (isProcessAvailable) {
-        return process.env[envKey];
+        return process.env[envKey] as ShamelaConfig[Key];
     }
 
-    return undefined;
+    return undefined as ShamelaConfig[Key];
 };
 
 /**
@@ -74,12 +73,12 @@ export const configure = (config: ConfigureOptions) => {
  * @param key - The configuration key to read
  * @returns The configuration value when available
  */
-export const getConfigValue = (key: ShamelaConfigKey) => {
+export const getConfigValue = <Key extends ShamelaConfigKey>(key: Key) => {
     if (key === 'fetchImplementation') {
-        return runtimeConfig.fetchImplementation;
+        return runtimeConfig.fetchImplementation as ShamelaConfig[Key];
     }
 
-    return readEnv(key);
+    return readEnv(key as Exclude<Key, 'fetchImplementation'>);
 };
 
 /**
@@ -104,8 +103,8 @@ export const getConfig = (): ShamelaConfig => {
  * @throws {Error} If the configuration value is not defined
  * @returns The resolved configuration value
  */
-export const requireConfigValue = (key: ShamelaConfigKey) => {
-    if (key === 'fetchImplementation') {
+export const requireConfigValue = <Key extends Exclude<ShamelaConfigKey, 'fetchImplementation'>>(key: Key) => {
+    if ((key as ShamelaConfigKey) === 'fetchImplementation') {
         throw new Error('fetchImplementation must be provided via configure().');
     }
 
@@ -114,7 +113,7 @@ export const requireConfigValue = (key: ShamelaConfigKey) => {
         throw new Error(`${ENV_MAP[key]} environment variable not set`);
     }
 
-    return value;
+    return value as NonNullable<ShamelaConfig[Key]>;
 };
 
 /**

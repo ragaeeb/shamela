@@ -7,7 +7,9 @@
 /build
 /tmp
 dist
-storybook-static
+.next
+demo/.next
+.vercel
 
 # misc
 .DS_Store

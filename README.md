@@ -33,8 +33,8 @@ A universal TypeScript library for accessing and downloading Maktabah Shamela v4
     - [Downloading a Book](#downloading-a-book)
     - [Retrieving Book Data](#retrieving-book-data)
     - [Retrieving Master Data in memory](#retrieving-master-data-in-memory)
-    - [Getting Book Cover URLs](#getting-book-cover-urls)
 - [Data Structures](#data-structures)
+- [Next.js demo](#nextjs-demo)
 - [Testing](#testing)
 - [License](#license)
 
@@ -471,19 +471,33 @@ The library provides comprehensive TypeScript types for all data structures:
 - `parseContentRobust(content: string)`: Converts Shamela page HTML into a list of structured lines while preserving title markers and punctuation.
 - `sanitizePageContent(content: string)`: Removes common footnote markers and normalises ligatures from Shamela pages.
 
-## Storybook demo
+## Next.js demo
 
-An interactive Storybook playground (`stories/ShamelaDemo.stories.ts`) lets you validate API keys and preview book downloads directly in the browser. Because the Shamela API does not enable CORS, the `bun run storybook` script automatically launches the Bun proxy and Storybook together. Ensure `SHAMELA_API_MASTER_PATCH_ENDPOINT` and `SHAMELA_API_BOOKS_ENDPOINT` are defined in your environment, then run:
+A minimal Next.js 16 application in `demo/` replaces the previous Storybook setup and offers an RTL-friendly explorer for the Shamela APIs. The server renders requests so the browser can bypass CORS limits and you only need to provide an API key and book identifier at runtime.
 
-```bash
-bun run storybook
+Create a `demo/.env.local` file (or export the variables in your shell) containing the real endpoints you wish to call:
+
+```dotenv
+SHAMELA_API_MASTER_PATCH_ENDPOINT=https://dev.shamela.ws/api/v1/patches/master
+SHAMELA_API_BOOKS_ENDPOINT=https://dev.shamela.ws/api/v1/patches/book-updates
+# Optional when hosting the wasm asset yourself
+# SHAMELA_SQLJS_WASM_URL=https://example.com/sql-wasm.wasm
 ```
 
-The demo reads the proxied endpoints from `scripts/proxy.ts`, so you only need to provide an API key and book identifier in the UI. To generate a static build:
+Then launch the demo:
 
 ```bash
-bun run storybook:build
+bun run demo
 ```
+
+Visit [http://localhost:3000](http://localhost:3000) to enter your API key, choose a book ID, and call helpers like `getMasterMetadata`, `getMaster`, `getBook`, and `downloadMasterDatabase` directly from the interface. For production-style builds use:
+
+```bash
+bun run demo:build
+bun run demo:start
+```
+
+When deploying to Vercel, point the project to the `demo` directory and supply the same environment variables in the dashboard so the API routes can reach Shamela.
 
 ## Testing
 

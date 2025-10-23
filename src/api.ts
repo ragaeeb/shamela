@@ -1,11 +1,7 @@
-import { requireConfigValue } from './config.js';
-import { createDatabase, openDatabase, type SqliteDatabase } from './db/sqlite.js';
-import { applyPatches, copyTableData, createTables as createBookTables, getData as getBookData } from './db/book.js';
-import {
-    copyForeignMasterTableData,
-    createTables as createMasterTables,
-    getData as getMasterData,
-} from './db/master.js';
+import { requireConfigValue } from './config';
+import { createDatabase, openDatabase, type SqliteDatabase } from './db/sqlite';
+import { applyPatches, copyTableData, createTables as createBookTables, getData as getBookData } from './db/book';
+import { copyForeignMasterTableData, createTables as createMasterTables, getData as getMasterData } from './db/master';
 import type {
     BookData,
     DownloadBookOptions,
@@ -14,27 +10,15 @@ import type {
     GetBookMetadataOptions,
     GetBookMetadataResponsePayload,
     GetMasterMetadataResponsePayload,
-} from './types.js';
-import { mapPageRowToPage, mapTitleRowToTitle, redactUrl } from './utils/common.js';
-import { DEFAULT_MASTER_METADATA_VERSION } from './utils/constants.js';
-import type { UnzippedEntry } from './utils/io.js';
-import { unzipFromUrl, writeOutput } from './utils/io.js';
-import logger from './utils/logger.js';
-import { buildUrl, httpsGet } from './utils/network.js';
-import { validateEnvVariables, validateMasterSourceTables } from './utils/validation.js';
-
-/**
- * Normalises download URLs by enforcing HTTPS regardless of the source protocol.
- *
- * @param originalUrl - The URL to normalise
- * @returns The URL string using the HTTPS protocol
- */
-const fixHttpsProtocol = (originalUrl: string) => {
-    const url = new URL(originalUrl);
-    url.protocol = 'https';
-
-    return url.toString();
-};
+} from './types';
+import { mapPageRowToPage, mapTitleRowToTitle, redactUrl } from './utils/common';
+import { DEFAULT_MASTER_METADATA_VERSION } from './utils/constants';
+import type { UnzippedEntry } from './utils/io';
+import { unzipFromUrl, writeOutput } from './utils/io';
+import logger from './utils/logger';
+import { buildUrl, httpsGet } from './utils/network';
+import { findSqliteEntry, fixHttpsProtocol, getExtension, isSqliteEntry } from './utils/downloads';
+import { validateEnvVariables, validateMasterSourceTables } from './utils/validation';
 
 /**
  * Response payload received when requesting book update metadata from the Shamela API.
@@ -44,35 +28,6 @@ type BookUpdatesResponse = {
     major_release_url: string;
     minor_release?: number;
     minor_release_url?: string;
-};
-
-/**
- * Determines whether an extracted archive entry represents a SQLite database.
- *
- * @param entry - The archive entry to inspect
- * @returns True when the entry file name ends with .sqlite or .db
- */
-const isSqliteEntry = (entry: UnzippedEntry) => /\.(sqlite|db)$/i.test(entry.name);
-
-/**
- * Finds the first SQLite entry from a collection of extracted archive entries.
- *
- * @param entries - The archive entries to search through
- * @returns The matching entry if found, otherwise undefined
- */
-const findSqliteEntry = (entries: UnzippedEntry[]) => {
-    return entries.find(isSqliteEntry);
-};
-
-/**
- * Extracts the lowercase file extension from the provided path.
- *
- * @param filePath - The path or filename to inspect
- * @returns The file extension including the leading dot, or an empty string when absent
- */
-const getExtension = (filePath: string) => {
-    const match = /\.([^.]+)$/.exec(filePath);
-    return match ? `.${match[1].toLowerCase()}` : '';
 };
 
 /**
