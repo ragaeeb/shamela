@@ -273,7 +273,7 @@ describe('content', () => {
         });
     });
 
-    describe('additional helpers', () => {
+    describe('splitPageBodyFromFooter', () => {
         it('splitPageBodyFromFooter separates trailing footnotes', () => {
             const [body, footer] = splitPageBodyFromFooter('content_________footnote');
             expect(body).toBe('content');
@@ -285,14 +285,46 @@ describe('content', () => {
             expect(body).toBe('content only');
             expect(footer).toBe('');
         });
+    });
 
+    describe('removeArabicNumericPageMarkers', () => {
         it('removeArabicNumericPageMarkers strips numeric markers', () => {
             expect(removeArabicNumericPageMarkers('النص ⦗١٢٣⦘ هنا')).toBe('النص هنا');
         });
 
-        it('removeTagsExceptSpan removes anchor and hadeeth tags while keeping text', () => {
+        it('removeArabicNumericPageMarkers handles empty string', () => {
+            expect(removeArabicNumericPageMarkers('')).toBe('');
+        });
+
+        it('removeArabicNumericPageMarkers handles text without markers', () => {
+            const input = 'نص بدون علامات';
+            expect(removeArabicNumericPageMarkers(input)).toBe(input);
+        });
+    });
+
+    describe('removeTagsExceptSpan', () => {
+        it('should remove anchor and hadeeth tags while keeping text', () => {
             const input = "قبل <a href='#'>رابط</a> <hadeeth>نص</hadeeth> <span>يبقى</span>";
             expect(removeTagsExceptSpan(input)).toBe('قبل رابط نص <span>يبقى</span>');
+        });
+
+        it('removeTagsExceptSpan handles empty string', () => {
+            expect(removeTagsExceptSpan('')).toBe('');
+        });
+
+        it('removeTagsExceptSpan preserves multiple span tags', () => {
+            const input = '<span>أول</span> نص <span>ثاني</span>';
+            expect(removeTagsExceptSpan(input)).toBe(input);
+        });
+
+        it('removeTagsExceptSpan handles text without tags', () => {
+            const input = 'نص بدون وسوم';
+            expect(removeTagsExceptSpan(input)).toBe(input);
+        });
+
+        it('removeTagsExceptSpan handles nested tags', () => {
+            const input = '<a href="#">خارج <span>داخل</span></a>';
+            expect(removeTagsExceptSpan(input)).toBe('خارج <span>داخل</span>');
         });
     });
 });

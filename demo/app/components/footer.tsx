@@ -33,9 +33,6 @@ const styles = {
         cursor: 'pointer',
         textDecoration: 'underline',
     },
-    linkHover: {
-        color: '#111827',
-    },
     text: {
         direction: 'ltr' as const,
         margin: 0,

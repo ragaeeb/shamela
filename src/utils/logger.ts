@@ -16,7 +16,12 @@ export interface Logger {
 /**
  * No-op logger used when consumers do not provide their own implementation.
  */
-export const SILENT_LOGGER: Logger = { debug: () => {}, error: () => {}, info: () => {}, warn: () => {} };
+export const SILENT_LOGGER: Logger = Object.freeze({
+    debug: () => {},
+    error: () => {},
+    info: () => {},
+    warn: () => {},
+});
 
 let currentLogger: Logger = SILENT_LOGGER;
 
@@ -36,7 +41,9 @@ export const configureLogger = (newLogger?: Logger) => {
     const missingMethod = requiredMethods.find((method) => typeof newLogger[method] !== 'function');
 
     if (missingMethod) {
-        throw new Error('Logger must implement debug, error, info, and warn methods');
+        throw new Error(
+            `Logger must implement debug, error, info, and warn methods. Missing: ${String(missingMethod)}`,
+        );
     }
 
     currentLogger = newLogger;

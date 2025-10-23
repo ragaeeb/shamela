@@ -21,6 +21,14 @@ export const POST = async (request: Request) => {
             version?: number;
         };
 
+        if (typeof apiKey !== 'string' || !apiKey) {
+            return NextResponse.json({ error: 'apiKey must be a non-empty string' }, { status: 400 });
+        }
+
+        if (typeof version !== 'number' || version < 0) {
+            return NextResponse.json({ error: 'version must be a non-negative number' }, { status: 400 });
+        }
+
         const data = await runWithShamelaConfig(apiKey, () => getMasterMetadata(version));
 
         return NextResponse.json({ data });

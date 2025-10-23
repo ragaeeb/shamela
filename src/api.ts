@@ -121,7 +121,7 @@ const setupMasterDatabase = async (
     logger.info(`Downloading master database ${masterResponse.version} from: ${redactUrl(masterResponse.url)}`);
     const sourceTables = await unzipFromUrl(fixHttpsProtocol(masterResponse.url));
 
-    logger.info(`sourceTables downloaded: ${sourceTables.map((table) => table.name).toString()}`);
+    logger.debug?.(`sourceTables downloaded: ${sourceTables.map((table) => table.name).toString()}`);
 
     if (!validateMasterSourceTables(sourceTables.map((table) => table.name))) {
         logger.error(`Some source tables were not found: ${sourceTables.map((table) => table.name).toString()}`);
@@ -226,7 +226,7 @@ export const downloadBook = async (id: number, options: DownloadBookOptions): Pr
         throw new Error('outputFile.path must be provided to determine output format');
     }
 
-    const extension = getExtension(options.outputFile.path);
+    const extension = getExtension(options.outputFile.path).toLowerCase();
 
     const { client, cleanup } = await setupBookDatabase(id, options?.bookMetadata);
 

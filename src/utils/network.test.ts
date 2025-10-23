@@ -8,7 +8,6 @@ let httpsGet: NetworkModule['httpsGet'];
 describe('network utilities', () => {
     beforeAll(async () => {
         const actualNetworkModule = await import('./network.ts');
-        mock.module('./network', () => actualNetworkModule);
         ({ buildUrl, httpsGet } = actualNetworkModule);
     });
 

@@ -27,7 +27,7 @@ const postJson = async (endpoint: string, payload: Record<string, unknown>) => {
     const json = (await response.json()) as { data?: unknown; error?: { message: string } };
 
     if (!response.ok) {
-        throw new Error(json.error?.message ?? 'Request failed');
+        throw new Error(json.error?.message ?? `Request failed with status ${response.status}`);
     }
 
     return json.data;

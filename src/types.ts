@@ -111,15 +111,22 @@ export type GetMasterMetadataResponsePayload = {
     version: number;
 };
 
+type NodeJSOutput = {
+    /** Output file path (Node.js only) */
+    path: string;
+    writer?: never;
+};
+
+type CustomOutput = {
+    /** Custom writer used when path is not provided */
+    writer: (payload: string | Uint8Array) => Promise<void> | void;
+    path?: undefined;
+};
+
 /**
  * Output file options.
  */
-export interface OutputOptions {
-    /** Output file path (Node.js only) */
-    path?: string;
-    /** Custom writer used when path is not provided */
-    writer?: (payload: string | Uint8Array) => Promise<void> | void;
-}
+export type OutputOptions = NodeJSOutput | CustomOutput;
 
 /**
  * Runtime configuration for the library.

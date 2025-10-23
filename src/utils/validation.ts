@@ -9,9 +9,9 @@ const SOURCE_TABLES = ['author.sqlite', 'book.sqlite', 'category.sqlite'];
 export const validateEnvVariables = () => {
     const { apiKey, booksEndpoint, masterPatchEndpoint } = getConfig();
     const envVariablesNotFound = [
-        ['SHAMELA_API_KEY', apiKey],
-        ['SHAMELA_API_BOOKS_ENDPOINT', booksEndpoint],
-        ['SHAMELA_API_MASTER_PATCH_ENDPOINT', masterPatchEndpoint],
+        ['apiKey', apiKey],
+        ['booksEndpoint', booksEndpoint],
+        ['masterPatchEndpoint', masterPatchEndpoint],
     ]
         .filter(([, value]) => !value)
         .map(([key]) => key);
@@ -29,7 +29,7 @@ export const validateEnvVariables = () => {
 export const validateMasterSourceTables = (sourceTablePaths: string[]) => {
     const sourceTableNames = new Set(
         sourceTablePaths
-            .map((tablePath) => tablePath.split('/').pop()?.split('\\').pop() ?? tablePath)
+            .map((tablePath) => tablePath.match(/[^\\/]+$/)?.[0] ?? tablePath)
             .map((name) => name.toLowerCase()),
     );
     return SOURCE_TABLES.every((table) => sourceTableNames.has(table.toLowerCase()));

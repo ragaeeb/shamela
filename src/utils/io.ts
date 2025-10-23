@@ -1,8 +1,8 @@
 import { unzipSync } from 'fflate';
 
 import type { OutputOptions } from '@/types';
-import { httpsGet } from './network';
 import logger from './logger';
+import { httpsGet } from './network';
 
 /**
  * Representation of an extracted archive entry containing raw bytes and filename metadata.

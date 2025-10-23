@@ -29,9 +29,7 @@ describe('validation utilities', () => {
     });
 
     it('validateEnvVariables throws when required configuration is missing', () => {
-        expect(() => validateEnvVariables()).toThrow(
-            'SHAMELA_API_KEY, SHAMELA_API_BOOKS_ENDPOINT, SHAMELA_API_MASTER_PATCH_ENDPOINT environment variables not set',
-        );
+        expect(() => validateEnvVariables()).toThrow(/environment variables not set/i);
     });
 
     it('validateEnvVariables passes when configuration is provided', () => {
