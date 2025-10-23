@@ -51,10 +51,9 @@
         "demo": "next dev demo",
         "demo:build": "next build demo",
         "demo:start": "next start demo",
-        "e2e": "bun test testing/e2e.test.ts",
         "format": "biome format --write .",
         "lint": "biome check .",
-        "test": "bun test src"
+        "test": "bun test src --coverage --coverage-reporter=lcov"
     },
     "sideEffects": false,
     "source": "src/index.ts",
