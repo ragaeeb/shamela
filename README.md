@@ -2,6 +2,7 @@
 
 [![wakatime](https://wakatime.com/badge/user/a0b906ce-b8e7-4463-8bce-383238df6d4b/project/faef70ab-efdb-448b-ab83-0fc66c95888e.svg)](https://wakatime.com/badge/user/a0b906ce-b8e7-4463-8bce-383238df6d4b/project/faef70ab-efdb-448b-ab83-0fc66c95888e)
 [![E2E](https://github.com/ragaeeb/shamela/actions/workflows/e2e.yml/badge.svg)](https://github.com/ragaeeb/shamela/actions/workflows/e2e.yml)
+[![Vercel Deploy](https://deploy-badge.vercel.app/vercel/shamela)](https://shamela.vercel.app)
 [![Node.js CI](https://github.com/ragaeeb/shamela/actions/workflows/build.yml/badge.svg)](https://github.com/ragaeeb/shamela/actions/workflows/build.yml) ![GitHub License](https://img.shields.io/github/license/ragaeeb/shamela)
 ![GitHub Release](https://img.shields.io/github/v/release/ragaeeb/shamela)
 [![codecov](https://codecov.io/gh/ragaeeb/shamela/graph/badge.svg?token=PK55V1R324)](https://codecov.io/gh/ragaeeb/shamela)
@@ -12,7 +13,7 @@
 ![GitHub issues](https://img.shields.io/github/issues/ragaeeb/shamela)
 ![GitHub stars](https://img.shields.io/github/stars/ragaeeb/shamela?style=social)
 
-A `Node.js` library for accessing and downloading Maktabah Shamela v4 APIs. This library provides easy-to-use functions to interact with the Shamela API, download master and book databases, and retrieve book data programmatically.
+A universal TypeScript library for accessing and downloading Maktabah Shamela v4 APIs. The package runs in both Node.js and modern browsers, providing ergonomic helpers to interact with the Shamela API, download master and book databases, and retrieve book data programmatically.
 
 ## Table of Contents
 
@@ -26,13 +27,15 @@ A `Node.js` library for accessing and downloading Maktabah Shamela v4 APIs. This
         - [getBookMetadata](#getbookmetadata)
         - [downloadBook](#downloadbook)
         - [getBook](#getbook)
+        - [getMaster](#getmaster)
         - [getCoverUrl](#getcoverurl)
 - [Examples](#examples)
     - [Downloading the Master Database](#downloading-the-master-database)
     - [Downloading a Book](#downloading-a-book)
     - [Retrieving Book Data](#retrieving-book-data)
-    - [Getting Book Cover URLs](#getting-book-cover-urls)
+    - [Retrieving Master Data in memory](#retrieving-master-data-in-memory)
 - [Data Structures](#data-structures)
+- [Next.js demo](#nextjs-demo)
 - [Testing](#testing)
 - [License](#license)
 
@@ -67,6 +70,7 @@ Before using the library, you need to set up some environment variables for API 
 - `SHAMELA_API_KEY`: Your API key for accessing the Shamela API.
 - `SHAMELA_API_MASTER_PATCH_ENDPOINT`: The endpoint URL for the master database patches.
 - `SHAMELA_API_BOOKS_ENDPOINT`: The base endpoint URL for book-related API calls.
+- `SHAMELA_SQLJS_WASM_URL` (optional): Override the default CDN URL used to load the `sql.js` WebAssembly binary when running in the browser.
 
 You can set these variables in a `.env` file at the root of your project:
 
@@ -74,7 +78,33 @@ You can set these variables in a `.env` file at the root of your project:
 SHAMELA_API_KEY=your_api_key_here
 SHAMELA_API_MASTER_PATCH_ENDPOINT=https://shamela.ws/api/master_patch
 SHAMELA_API_BOOKS_ENDPOINT=https://shamela.ws/api/books
+# Optional when you host sql-wasm.wasm yourself
+# SHAMELA_SQLJS_WASM_URL=https://example.com/sql-wasm.wasm
 ```
+
+### Runtime configuration (browsers and serverless)
+
+When you cannot rely on environment variables—such as when running inside a browser, an edge worker, or a serverless function—use the `configure` helper to provide credentials at runtime:
+
+```ts
+import { configure } from 'shamela';
+
+configure({
+    apiKey: process.env.NEXT_PUBLIC_SHAMELA_KEY,
+    booksEndpoint: 'https://shamela.ws/api/books',
+    masterPatchEndpoint: 'https://shamela.ws/api/master_patch',
+    // Optional: host sql-wasm.wasm yourself to control caching/CDN placement
+    sqlJsWasmUrl: '/assets/sql-wasm.wasm',
+    // Optional: integrate with your application's logging system
+    logger: console,
+    // Optional: provide a custom fetch implementation (for tests or SSR)
+    fetchImplementation: fetch,
+});
+```
+
+You can call `configure` multiple times—values are merged, so later calls update only the keys you pass in.
+
+The optional `logger` must expose `debug`, `info`, `warn`, and `error` methods. When omitted, the library stays silent by default.
 
 ## Usage
 
@@ -89,6 +119,7 @@ import {
     getBookMetadata,
     downloadBook,
     getBook,
+    getMaster,
     getCoverUrl,
 } from 'shamela';
 ```
@@ -239,6 +270,26 @@ console.log(bookData.titles?.length); // Number of title entries
 console.log(bookData.pages[0].content); // Content of the first page
 ```
 
+#### getMaster
+
+Retrieves the entire master dataset (authors, books, categories) as a JavaScript object, including the version number that the
+API reports for the snapshot.
+
+```typescript
+getMaster(): Promise<MasterData>
+```
+
+**Returns:** Promise that resolves to the complete master dataset with version metadata
+
+**Example:**
+
+```javascript
+const masterData = await getMaster();
+console.log(masterData.version); // Version of the downloaded master database
+console.log(masterData.books.length); // Number of books available
+console.log(masterData.categories.length); // Number of categories available
+```
+
 #### getCoverUrl
 
 Generates the URL for a book's cover image.
@@ -278,6 +329,7 @@ import { downloadMasterDatabase } from 'shamela';
             outputFile: { path: './shamela_master.json' },
         });
         console.log(`Master data exported to: ${jsonPath}`);
+        console.log('The JSON file includes authors, books, categories, and the master version number.');
     } catch (error) {
         console.error('Error downloading master database:', error);
     }
@@ -339,6 +391,24 @@ import { getBook } from 'shamela';
 })();
 ```
 
+### Retrieving Master Data in memory
+
+```javascript
+import { getMaster } from 'shamela';
+
+(async () => {
+    try {
+        const masterData = await getMaster();
+
+        console.log(`Master snapshot version: ${masterData.version}`);
+        console.log(`Master dataset includes ${masterData.books.length} books`);
+        console.log(`Master dataset includes ${masterData.categories.length} categories`);
+    } catch (error) {
+        console.error('Error retrieving master data:', error);
+    }
+})();
+```
+
 ### Getting Book Cover URLs
 
 ```javascript
@@ -379,6 +449,7 @@ The library provides comprehensive TypeScript types for all data structures:
 - `authors`: Raw entries from the `author` table with the original `biography`, `death_text`, `death_number`, `is_deleted`, and `name` fields.
 - `books`: Raw entries from the `book` table containing the original metadata columns (`author`, `bibliography`, `category`, `date`, `hint`, `major_release`, `metadata`, `minor_release`, `pdf_links`, `printed`, `type`, and `is_deleted`).
 - `categories`: Raw entries from the `category` table including `is_deleted`, `order`, and `name`.
+- `version`: Version number reported by the Shamela API for the downloaded master database.
 
 ### Page
 
@@ -401,12 +472,40 @@ The library provides comprehensive TypeScript types for all data structures:
 - `parseContentRobust(content: string)`: Converts Shamela page HTML into a list of structured lines while preserving title markers and punctuation.
 - `sanitizePageContent(content: string)`: Removes common footnote markers and normalises ligatures from Shamela pages.
 
-## Testing
+## Next.js demo
 
-The library includes comprehensive tests. To run them, ensure you have the necessary environment variables set, then execute:
+A minimal Next.js 16 application in `demo/` replaces the previous Storybook setup and offers an RTL-friendly explorer for the Shamela APIs. The server renders requests so the browser can bypass CORS limits and you only need to provide an API key and book identifier at runtime.
+
+Create a `demo/.env.local` file (or export the variables in your shell) containing the real endpoints you wish to call:
+
+```dotenv
+SHAMELA_API_MASTER_PATCH_ENDPOINT=https://dev.shamela.ws/api/v1/patches/master
+SHAMELA_API_BOOKS_ENDPOINT=https://dev.shamela.ws/api/v1/patches/book-updates
+# Optional when hosting the wasm asset yourself
+# SHAMELA_SQLJS_WASM_URL=https://example.com/sql-wasm.wasm
+```
+
+Then launch the demo:
 
 ```bash
-bun test
+bun run demo
+```
+
+Visit [http://localhost:3000](http://localhost:3000) to enter your API key, choose a book ID, and call helpers like `getMasterMetadata`, `getMaster`, `getBook`, and `downloadMasterDatabase` directly from the interface. For production-style builds use:
+
+```bash
+bun run demo:build
+bun run demo:start
+```
+
+When deploying to Vercel, point the project to the `demo` directory and supply the same environment variables in the dashboard so the API routes can reach Shamela.
+
+## Testing
+
+The library includes comprehensive tests powered by `bun test`. To run the unit suite, ensure you have the necessary environment variables set, then execute:
+
+```bash
+bun test src
 ```
 
 For end-to-end tests:
@@ -415,10 +514,12 @@ For end-to-end tests:
 bun run e2e
 ```
 
-For CI environment:
+### Formatting
+
+Apply Biome formatting across the repository with:
 
 ```bash
-bun run e2e:ci
+bun run format
 ```
 
 ## License

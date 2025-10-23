@@ -1,4 +1,6 @@
 export * from './api';
+export type { ConfigureOptions } from './config';
+export { configure, resetConfig } from './config';
 export * from './content';
 export * from './types';
-export { setLogger } from './utils/logger';
+export type { Logger } from './utils/logger';

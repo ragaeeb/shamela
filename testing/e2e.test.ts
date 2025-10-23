@@ -3,19 +3,19 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
-import { downloadBook, downloadMasterDatabase, getBook, getCoverUrl } from '../src/api';
+import { downloadBook, downloadMasterDatabase, getBook, getCoverUrl, getMaster } from '../src/api';
+import { configure, resetConfig } from '../src/config';
 import { createTempDir } from '../src/utils/io';
-import { setLogger } from '../src/utils/logger';
 
 describe('e2e', () => {
     let outputDir: string;
 
     beforeAll(() => {
-        setLogger(console);
+        configure({ logger: console });
     });
 
     afterAll(() => {
-        setLogger();
+        resetConfig();
     });
 
     beforeEach(async () => {
@@ -23,7 +23,7 @@ describe('e2e', () => {
     });
 
     afterEach(async () => {
-        await fs.rm(outputDir, { recursive: true });
+        await fs.rm(outputDir, { recursive: true, force: true });
     });
 
     describe('downloadMasterDatabase', () => {
@@ -58,11 +58,12 @@ describe('e2e', () => {
             const result = await downloadMasterDatabase({ outputFile: { path: dbPath } });
             expect(result).toEqual(dbPath);
 
-            const { authors, books, categories } = JSON.parse(await fs.readFile(result, 'utf8'));
+            const { authors, books, categories, version } = JSON.parse(await fs.readFile(result, 'utf8'));
 
             expect((authors.length as number) > 3000).toBeTrue();
             expect((books.length as number) > 8000).toBeTrue();
             expect((categories.length as number) > 30).toBeTrue();
+            expect(version > 0).toBeTrue();
         }, 30000);
     });
 
@@ -146,6 +147,17 @@ describe('e2e', () => {
 
             expect(pages.length > 10).toBeTrue();
             expect(titles.length > 5).toBeTrue();
+        }, 30000);
+    });
+
+    describe('getMaster', () => {
+        it('loads master data into memory with version information', async () => {
+            const data = await getMaster();
+
+            expect(data.version > 0).toBeTrue();
+            expect(data.authors.length > 3000).toBeTrue();
+            expect(data.books.length > 8000).toBeTrue();
+            expect(data.categories.length > 30).toBeTrue();
         }, 30000);
     });
 

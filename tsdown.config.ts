@@ -1,11 +1,14 @@
-import { defineConfig } from 'tsup';
+import { defineConfig } from 'tsdown';
 
 export default defineConfig({
     clean: true,
     dts: true,
     entry: ['src/index.ts'],
-    external: ['bun:sqlite'],
+    external: ['node:fs/promises', 'node:os', 'node:path'],
     format: ['esm'],
+    loader: {
+        '.wasm': 'asset',
+    },
     minify: true,
     platform: 'neutral',
     sourcemap: true,

@@ -2,20 +2,25 @@
     "author": "Ragaeeb Haq",
     "default": "./dist/index.js",
     "dependencies": {
-        "unzipper": "^0.12.3"
+        "fflate": "^0.8.2",
+        "sql.js": "^1.13.0"
     },
     "description": "Library to interact with the Maktabah Shamela v4 APIs",
     "devDependencies": {
-        "@biomejs/biome": "^2.2.4",
-        "@types/bun": "^1.2.23",
-        "@types/node": "^24.5.2",
-        "@types/unzipper": "^0.10.11",
-        "semantic-release": "^24.2.9",
-        "tsup": "^8.5.0"
+        "@biomejs/biome": "^2.2.7",
+        "@types/node": "^24.9.1",
+        "@types/react": "^18.3.12",
+        "@types/react-dom": "^18.3.1",
+        "@types/sql.js": "^1.4.9",
+        "next": "^16.0.1-canary.0",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "semantic-release": "^25.0.1",
+        "tsdown": "^0.15.9",
+        "typescript": "^5.9.3"
     },
     "engines": {
-        "bun": ">=1.2.23",
-        "node": ">=22.0.0"
+        "node": ">=18.0.0"
     },
     "exports": {
         ".": {
@@ -26,6 +31,7 @@
     "files": [
         "dist/**"
     ],
+    "homepage": "https://github.com/ragaeeb/shamela",
     "keywords": [
         "shamela",
         "Arabic",
@@ -41,15 +47,17 @@
         "url": "git+https://github.com/ragaeeb/shamela.git"
     },
     "scripts": {
-        "build": "tsup",
-        "e2e": "bun test e2e --env-file .env",
-        "e2e:ci": "bun test e2e",
+        "build": "tsdown",
+        "demo": "next dev demo",
+        "demo:build": "next build demo",
+        "demo:start": "next start demo",
+        "format": "biome format --write .",
         "lint": "biome check .",
-        "test": "bun test src/ --coverage --coverage-reporter=lcov"
+        "test": "bun test src --coverage --coverage-reporter=lcov"
     },
     "sideEffects": false,
     "source": "src/index.ts",
     "type": "module",
     "types": "dist/index.d.ts",
-    "version": "1.2.3"
+    "version": "1.3.0"
 }
