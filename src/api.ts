@@ -1,23 +1,23 @@
 import { requireConfigValue } from './config';
-import { createDatabase, openDatabase, type SqliteDatabase } from './db/sqlite';
 import { applyPatches, copyTableData, createTables as createBookTables, getData as getBookData } from './db/book';
 import { copyForeignMasterTableData, createTables as createMasterTables, getData as getMasterData } from './db/master';
+import { createDatabase, openDatabase, type SqliteDatabase } from './db/sqlite';
 import type {
     BookData,
     DownloadBookOptions,
     DownloadMasterOptions,
-    MasterData,
     GetBookMetadataOptions,
     GetBookMetadataResponsePayload,
     GetMasterMetadataResponsePayload,
+    MasterData,
 } from './types';
 import { mapPageRowToPage, mapTitleRowToTitle, redactUrl } from './utils/common';
 import { DEFAULT_MASTER_METADATA_VERSION } from './utils/constants';
+import { findSqliteEntry, fixHttpsProtocol, getExtension, isSqliteEntry } from './utils/downloads';
 import type { UnzippedEntry } from './utils/io';
 import { unzipFromUrl, writeOutput } from './utils/io';
 import logger from './utils/logger';
 import { buildUrl, httpsGet } from './utils/network';
-import { findSqliteEntry, fixHttpsProtocol, getExtension, isSqliteEntry } from './utils/downloads';
 import { validateEnvVariables, validateMasterSourceTables } from './utils/validation';
 
 /**

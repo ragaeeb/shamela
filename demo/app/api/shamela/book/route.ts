@@ -22,13 +22,13 @@ export const POST = async (request: Request) => {
             const book = await getBook(id);
 
             return {
-                totals: {
-                    pages: book.pages.length,
-                    titles: book.titles.length,
-                },
                 preview: {
                     pages: book.pages.slice(0, 3),
                     titles: book.titles.slice(0, 5),
+                },
+                totals: {
+                    pages: book.pages.length,
+                    titles: book.titles.length,
                 },
             };
         });

@@ -1,5 +1,5 @@
-import { configure, resetConfig } from '@/config';
 import type { ConfigureOptions } from '@/config';
+import { configure, resetConfig } from '@/config';
 
 /**
  * Resolves the base Shamela configuration derived from environment variables.

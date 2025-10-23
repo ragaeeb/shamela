@@ -22,17 +22,17 @@ export const POST = async (request: Request) => {
             const master = await getMaster();
 
             return {
-                version: master.version,
-                totals: {
-                    authors: master.authors.length,
-                    books: master.books.length,
-                    categories: master.categories.length,
-                },
                 preview: {
                     authors: master.authors.slice(0, 5),
                     books: master.books.slice(0, 5),
                     categories: master.categories.slice(0, 5),
                 },
+                totals: {
+                    authors: master.authors.length,
+                    books: master.books.length,
+                    categories: master.categories.length,
+                },
+                version: master.version,
             };
         });
 

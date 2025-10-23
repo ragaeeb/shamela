@@ -41,20 +41,20 @@ export const POST = async (request: Request) => {
 
                 return {
                     filePath,
-                    version: parsed.version,
-                    totals: {
-                        authors: parsed.authors.length,
-                        books: parsed.books.length,
-                        categories: parsed.categories.length,
-                    },
                     preview: {
                         authors: parsed.authors.slice(0, 5),
                         books: parsed.books.slice(0, 5),
                         categories: parsed.categories.slice(0, 5),
                     },
+                    totals: {
+                        authors: parsed.authors.length,
+                        books: parsed.books.length,
+                        categories: parsed.categories.length,
+                    },
+                    version: parsed.version,
                 };
             } finally {
-                await rm(tempDir, { recursive: true, force: true });
+                await rm(tempDir, { force: true, recursive: true });
             }
         });
 

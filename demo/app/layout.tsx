@@ -2,13 +2,14 @@ import './globals.css';
 
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import { Footer } from './components/footer';
 
 /**
  * Metadata exposed for the demo application.
  */
 export const metadata: Metadata = {
-    title: 'Shamela Demo Explorer',
     description: 'Interact with Shamela APIs through a right-to-left friendly interface.',
+    title: 'Shamela',
 };
 
 /**
@@ -22,6 +23,7 @@ const RootLayout = ({ children }: { children: ReactNode }) => {
         <html lang="ar" dir="rtl">
             <body>
                 <main>{children}</main>
+                <Footer />
             </body>
         </html>
     );

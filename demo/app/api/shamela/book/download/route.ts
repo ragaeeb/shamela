@@ -39,17 +39,17 @@ export const POST = async (request: Request) => {
 
                 return {
                     filePath,
-                    totals: {
-                        pages: parsed.pages.length,
-                        titles: parsed.titles.length,
-                    },
                     preview: {
                         pages: parsed.pages.slice(0, 3),
                         titles: parsed.titles.slice(0, 5),
                     },
+                    totals: {
+                        pages: parsed.pages.length,
+                        titles: parsed.titles.length,
+                    },
                 };
             } finally {
-                await rm(tempDir, { recursive: true, force: true });
+                await rm(tempDir, { force: true, recursive: true });
             }
         });
 

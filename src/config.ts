@@ -1,6 +1,6 @@
+import type { ShamelaConfig, ShamelaConfigKey } from './types';
 import type { Logger } from './utils/logger';
 import { configureLogger, resetLogger } from './utils/logger';
-import type { ShamelaConfig, ShamelaConfigKey } from './types';
 
 /**
  * Mutable runtime configuration overrides supplied at runtime via {@link configure}.
@@ -90,9 +90,9 @@ export const getConfig = (): ShamelaConfig => {
     return {
         apiKey: readEnv('apiKey'),
         booksEndpoint: readEnv('booksEndpoint'),
+        fetchImplementation: runtimeConfig.fetchImplementation,
         masterPatchEndpoint: readEnv('masterPatchEndpoint'),
         sqlJsWasmUrl: readEnv('sqlJsWasmUrl'),
-        fetchImplementation: runtimeConfig.fetchImplementation,
     };
 };
 
