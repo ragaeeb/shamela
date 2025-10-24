@@ -1,6 +1,7 @@
 import initSqlJs, { type Database as SqlJsDatabase, type SqlJsStatic, type Statement } from 'sql.js';
 
-import { getConfigValue } from '../config';
+import { getConfigValue } from '@/config';
+import { findNodeWasmPath } from '@/utils/wasm';
 
 /**
  * Represents a row returned from a SQLite query as a generic key-value object.
@@ -133,13 +134,43 @@ const DEFAULT_BROWSER_WASM_URL = 'https://cdn.jsdelivr.net/npm/sql.js@1.13.0/dis
  */
 const getWasmPath = () => {
     if (!resolvedWasmPath) {
+        // First priority: user configuration
         const configured = getConfigValue('sqlJsWasmUrl');
         if (configured) {
             resolvedWasmPath = configured;
         } else if (isNodeEnvironment) {
-            const url = new URL('../../node_modules/sql.js/dist/sql-wasm.wasm', import.meta.url);
-            resolvedWasmPath = decodeURIComponent(url.pathname);
+            // Second priority: auto-detect in Node.js
+            const nodePath = findNodeWasmPath();
+            if (nodePath) {
+                resolvedWasmPath = nodePath;
+            } else {
+                // Fallback: provide helpful error with suggestions
+                const errorMsg = [
+                    'Unable to automatically locate sql-wasm.wasm file.',
+                    'This can happen in bundled environments (Next.js, webpack, etc.).',
+                    '',
+                    'Quick fix - add this to your code before using shamela:',
+                    '',
+                    '  import { configure, createNodeConfig } from "shamela";',
+                    '  configure(createNodeConfig({',
+                    '    apiKey: process.env.SHAMELA_API_KEY,',
+                    '    booksEndpoint: process.env.SHAMELA_BOOKS_ENDPOINT,',
+                    '    masterPatchEndpoint: process.env.SHAMELA_MASTER_ENDPOINT,',
+                    '  }));',
+                    '',
+                    'Or manually specify the path:',
+                    '',
+                    '  import { configure } from "shamela";',
+                    '  import { join } from "node:path";',
+                    '  configure({',
+                    '    sqlJsWasmUrl: join(process.cwd(), "node_modules", "sql.js", "dist", "sql-wasm.wasm")',
+                    '  });',
+                ].join('\n');
+
+                throw new Error(errorMsg);
+            }
         } else {
+            // Browser environment: use CDN
             resolvedWasmPath = DEFAULT_BROWSER_WASM_URL;
         }
     }

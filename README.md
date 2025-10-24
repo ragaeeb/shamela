@@ -21,6 +21,7 @@ A universal TypeScript library for accessing and downloading Maktabah Shamela v4
 - [Environment Variables](#environment-variables)
 - [Usage](#usage)
     - [Getting Started](#getting-started)
+    - [Next.js / Bundled Environments](#nextjs--bundled-environments)
     - [API Functions](#api-functions)
         - [getMasterMetadata](#getmastermetadata)
         - [downloadMasterDatabase](#downloadmasterdatabase)
@@ -36,6 +37,7 @@ A universal TypeScript library for accessing and downloading Maktabah Shamela v4
     - [Retrieving Master Data in memory](#retrieving-master-data-in-memory)
 - [Data Structures](#data-structures)
 - [Next.js demo](#nextjs-demo)
+- [Troubleshooting](#troubleshooting)
 - [Testing](#testing)
 - [License](#license)
 
@@ -123,6 +125,87 @@ import {
     getCoverUrl,
 } from 'shamela';
 ```
+
+### Next.js / Bundled Environments
+
+When using this library in Next.js or other bundled environments (webpack/Turbopack), you need some additional configuration to ensure the sql.js WASM file is loaded correctly.
+
+#### 1. Update your Next.js configuration
+
+Add the following to your `next.config.js` or `next.config.ts`:
+
+```typescript
+import type { NextConfig } from 'next';
+
+const nextConfig: NextConfig = {
+  experimental: {
+    serverComponentsExternalPackages: ['shamela', 'sql.js'],
+  },
+  serverExternalPackages: ['shamela', 'sql.js'],
+  // ... rest of your config
+};
+
+export default nextConfig;
+```
+
+This tells Next.js to exclude these packages from bundling and load them directly from `node_modules`.
+
+#### 2. Create a server-only configuration file
+
+Create a configuration file that will be imported only in server-side code:
+
+**Option A: Using the `createNodeConfig` helper (Recommended)**
+
+```typescript
+// lib/shamela-server.ts
+import { configure, createNodeConfig } from 'shamela';
+
+// Configure once when this module loads
+configure(createNodeConfig({
+  apiKey: process.env.SHAMELA_API_KEY,
+  booksEndpoint: process.env.SHAMELA_BOOKS_ENDPOINT,
+  masterPatchEndpoint: process.env.SHAMELA_MASTER_ENDPOINT,
+}));
+
+// Re-export the functions you need
+export { getBookMetadata, downloadBook, getMaster, getBook } from 'shamela';
+```
+
+**Option B: Manual configuration**
+
+```typescript
+// lib/shamela-server.ts
+import { configure } from 'shamela';
+import { join } from 'node:path';
+
+configure({
+  sqlJsWasmUrl: join(process.cwd(), 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
+  apiKey: process.env.SHAMELA_API_KEY,
+  booksEndpoint: process.env.SHAMELA_BOOKS_ENDPOINT,
+  masterPatchEndpoint: process.env.SHAMELA_MASTER_ENDPOINT,
+});
+
+export { getBookMetadata, downloadBook, getMaster, getBook } from 'shamela';
+```
+
+#### 3. Use in Server Actions or API Routes
+
+```typescript
+'use server';
+
+import { getBookMetadata, downloadBook } from '@/lib/shamela-server';
+
+export async function downloadBookAction(bookId: number) {
+  const metadata = await getBookMetadata(bookId);
+  const result = await downloadBook(bookId, {
+    bookMetadata: metadata,
+    outputFile: { path: `./books/${bookId}.db` }
+  });
+  return result;
+}
+```
+
+**Important:** Never import `shamela` directly in your `layout.tsx` or client components. Only use it in server-side code (Server Actions, API Routes, or Server Components).
 
 ### API Functions
 
@@ -499,6 +582,78 @@ bun run demo:start
 ```
 
 When deploying to Vercel, point the project to the `demo` directory and supply the same environment variables in the dashboard so the API routes can reach Shamela.
+
+## Troubleshooting
+
+### Error: "Unable to locate sql-wasm.wasm file"
+
+This error occurs when the library cannot automatically find the WASM file. This is common in bundled environments like Next.js with Turbopack/Webpack.
+
+**Solution:** Use the `createNodeConfig` helper or explicitly configure `sqlJsWasmUrl`:
+
+```typescript
+import { configure, createNodeConfig } from 'shamela';
+
+// Option 1: Use the helper (recommended)
+configure(createNodeConfig({
+  apiKey: process.env.SHAMELA_API_KEY,
+  booksEndpoint: process.env.SHAMELA_BOOKS_ENDPOINT,
+  masterPatchEndpoint: process.env.SHAMELA_MASTER_ENDPOINT,
+}));
+
+// Option 2: Manual configuration
+import { join } from 'node:path';
+
+configure({
+  sqlJsWasmUrl: join(process.cwd(), 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
+  apiKey: process.env.SHAMELA_API_KEY,
+  // ... other config
+});
+```
+
+### Error: "ENOENT: no such file or directory, open 'https://...'"
+
+This means you're in a Node.js environment but providing an HTTPS URL for the WASM file. Node.js requires a filesystem path, not a URL.
+
+**Solution:** Use a filesystem path instead of a URL:
+
+```typescript
+// ❌ Wrong - HTTPS URL in Node.js
+configure({
+  sqlJsWasmUrl: 'https://cdn.jsdelivr.net/npm/sql.js@1.13.0/dist/sql-wasm.wasm'
+});
+
+// ✅ Correct - Filesystem path or use createNodeConfig
+import { createNodeConfig } from 'shamela';
+
+configure(createNodeConfig({
+  apiKey: process.env.SHAMELA_API_KEY,
+  // ... other config
+}));
+```
+
+### Next.js: Module not found errors during build
+
+If you see webpack/Turbopack errors about not being able to resolve modules during the build phase:
+
+1. Make sure you've added `serverExternalPackages` to your `next.config.js` (see [Next.js / Bundled Environments](#nextjs--bundled-environments))
+2. Ensure you're only importing shamela in server-side code (Server Actions, API Routes, Server Components)
+3. Never import shamela in `layout.tsx` or client components
+4. Create a separate `lib/shamela-server.ts` file for configuration
+
+### Double `node_modules/node_modules` path error
+
+If you see paths like `/path/to/project/node_modules/node_modules/sql.js/...`, this indicates the library's auto-detection failed due to bundling. Use explicit configuration:
+
+```typescript
+import { configure, createNodeConfig } from 'shamela';
+
+configure(createNodeConfig({
+  apiKey: process.env.SHAMELA_API_KEY,
+  booksEndpoint: process.env.SHAMELA_BOOKS_ENDPOINT,
+  masterPatchEndpoint: process.env.SHAMELA_MASTER_ENDPOINT,
+}));
+```
 
 ## Testing
 
