@@ -123,3 +123,32 @@ export const resetConfig = () => {
     runtimeConfig = {};
     resetLogger();
 };
+
+/**
+ * Creates a default configuration for Node.js environments.
+ * Automatically sets the correct sqlJsWasmUrl path for bundled environments.
+ *
+ * This helper is optional - the library will auto-detect the WASM file location
+ * in most cases. Use this if you want explicit control or are experiencing issues.
+ *
+ * @param config - Your API configuration
+ * @returns Complete configuration with sqlJsWasmUrl set for Node.js
+ *
+ * @example
+ * ```typescript
+ * import { configure, createNodeConfig } from 'shamela';
+ *
+ * configure(createNodeConfig({
+ *   apiKey: process.env.SHAMELA_API_KEY,
+ *   booksEndpoint: process.env.SHAMELA_BOOKS_ENDPOINT,
+ *   masterPatchEndpoint: process.env.SHAMELA_MASTER_ENDPOINT,
+ * }));
+ * ```
+ */
+export const createNodeConfig = (config: Omit<ShamelaConfig, 'sqlJsWasmUrl'>): ShamelaConfig => {
+    const { join } = require('node:path');
+    return {
+        ...config,
+        sqlJsWasmUrl: join(process.cwd(), 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
+    };
+};
