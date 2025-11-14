@@ -7,16 +7,16 @@
     },
     "description": "Library to interact with the Maktabah Shamela v4 APIs",
     "devDependencies": {
-        "@biomejs/biome": "^2.2.7",
-        "@types/node": "^24.9.1",
+        "@biomejs/biome": "^2.3.4",
+        "@types/node": "^24.10.0",
         "@types/react": "^19.2.2",
         "@types/react-dom": "^19.2.2",
         "@types/sql.js": "^1.4.9",
-        "next": "^16.0.0",
+        "next": "^16.0.1",
         "react": "^19.2.0",
         "react-dom": "^19.2.0",
-        "semantic-release": "^25.0.1",
-        "tsdown": "^0.15.9",
+        "semantic-release": "^25.0.2",
+        "tsdown": "^0.16.1",
         "typescript": "^5.9.3"
     },
     "engines": {

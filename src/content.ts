@@ -8,6 +8,12 @@ export type Line = {
 const PUNCT_ONLY = /^[)\]\u00BB"”'’.,?!:\u061B\u060C\u061F\u06D4\u2026]+$/;
 const OPENER_AT_END = /[[({«“‘]$/;
 
+/**
+ * Merges punctuation-only lines into the preceding title when appropriate.
+ *
+ * @param lines - The processed line candidates to normalise
+ * @returns A new array where dangling punctuation fragments are appended to titles
+ */
 const mergeDanglingPunctuation = (lines: Line[]): Line[] => {
     const out: Line[] = [];
     for (const item of lines) {
@@ -21,6 +27,12 @@ const mergeDanglingPunctuation = (lines: Line[]): Line[] => {
     return out;
 };
 
+/**
+ * Normalises raw text into discrete line entries.
+ *
+ * @param text - Raw book content potentially containing inconsistent breaks
+ * @returns An array of trimmed line strings with empty entries removed
+ */
 const splitIntoLines = (text: string) => {
     let normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
@@ -34,10 +46,23 @@ const splitIntoLines = (text: string) => {
         .filter(Boolean);
 };
 
+/**
+ * Converts plain text content into {@link Line} objects without title metadata.
+ *
+ * @param content - The text content to split into line structures
+ * @returns A {@link Line} array wrapping each detected sentence fragment
+ */
 const processTextContent = (content: string): Line[] => {
     return splitIntoLines(content).map((line) => ({ text: line }));
 };
 
+/**
+ * Extracts an attribute value from the provided HTML tag string.
+ *
+ * @param tag - Raw HTML tag source
+ * @param name - Attribute name to locate
+ * @returns The attribute value when found; otherwise undefined
+ */
 const extractAttribute = (tag: string, name: string): string | undefined => {
     const pattern = new RegExp(`${name}\\s*=\\s*("([^"]*)"|'([^']*)'|([^s>]+))`, 'i');
     const match = tag.match(pattern);
@@ -52,6 +77,12 @@ type Token =
     | { type: 'start'; name: string; attributes: Record<string, string | undefined> }
     | { type: 'end'; name: string };
 
+/**
+ * Breaks the provided HTML fragment into structural tokens.
+ *
+ * @param html - HTML fragment containing book content markup
+ * @returns A token stream describing text and span boundaries
+ */
 const tokenize = (html: string): Token[] => {
     const tokens: Token[] = [];
     const tagRegex = /<[^>]+>/g;
@@ -89,6 +120,13 @@ const tokenize = (html: string): Token[] => {
     return tokens;
 };
 
+/**
+ * Attempts to append inline punctuation to the previous title line.
+ *
+ * @param result - Current list of processed lines
+ * @param raw - The raw text fragment to evaluate
+ * @returns True when the fragment is appended; otherwise false
+ */
 const maybeAppendToPrevTitle = (result: Line[], raw: string) => {
     const last = result[result.length - 1];
     if (!raw) {
@@ -107,6 +145,12 @@ const maybeAppendToPrevTitle = (result: Line[], raw: string) => {
     return true;
 };
 
+/**
+ * Parses Shamela HTML content into structured lines while preserving headings.
+ *
+ * @param content - The raw HTML markup representing a page
+ * @returns An array of {@link Line} objects containing text and optional IDs
+ */
 export const parseContentRobust = (content: string): Line[] => {
     if (!/<span[^>]*>/i.test(content)) {
         return processTextContent(content);
@@ -175,7 +219,10 @@ const DEFAULT_COMPILED_RULES = Object.entries(DEFAULT_SANITIZATION_RULES).map(([
 }));
 
 /**
- * Compiles sanitization rules into RegExp objects for performance
+ * Compiles sanitisation rules into RegExp objects for reuse.
+ *
+ * @param rules - Key/value replacements used during sanitisation
+ * @returns A list of compiled regular expression rules
  */
 const getCompiledRules = (rules: Record<string, string>) => {
     if (rules === DEFAULT_SANITIZATION_RULES) {
@@ -193,10 +240,11 @@ const getCompiledRules = (rules: Record<string, string>) => {
 };
 
 /**
- * Sanitizes page content by applying regex replacement rules
- * @param text - The text to sanitize
- * @param rules - Optional custom rules (defaults to DEFAULT_SANITIZATION_RULES)
- * @returns The sanitized text
+ * Sanitises page content by applying regex replacement rules.
+ *
+ * @param text - The text to clean
+ * @param rules - Optional custom replacements, defaults to {@link DEFAULT_SANITIZATION_RULES}
+ * @returns The sanitised content
  */
 export const sanitizePageContent = (
     text: string,
@@ -212,6 +260,13 @@ export const sanitizePageContent = (
     return content;
 };
 
+/**
+ * Splits a page body from its trailing footnotes using a marker string.
+ *
+ * @param content - Combined body and footnote text
+ * @param footnoteMarker - Marker indicating the start of footnotes
+ * @returns A tuple containing the page body followed by the footnote section
+ */
 export const splitPageBodyFromFooter = (content: string, footnoteMarker = '_________') => {
     let footnote = '';
     const indexOfFootnote = content.lastIndexOf(footnoteMarker);
@@ -224,10 +279,22 @@ export const splitPageBodyFromFooter = (content: string, footnoteMarker = '_____
     return [content, footnote] as const;
 };
 
+/**
+ * Removes Arabic numeral page markers enclosed in ⦗ ⦘ brackets.
+ *
+ * @param text - Text potentially containing page markers
+ * @returns The text with numeric markers replaced by a space
+ */
 export const removeArabicNumericPageMarkers = (text: string) => {
     return text.replace(/\s?⦗[\u0660-\u0669]+⦘\s?/, ' ');
 };
 
+/**
+ * Removes anchor and hadeeth tags from the content while preserving spans.
+ *
+ * @param content - HTML string containing various tags
+ * @returns The content with only span tags retained
+ */
 export const removeTagsExceptSpan = (content: string) => {
     // Remove <a> tags and their content, keeping only the text inside
     content = content.replace(/<a[^>]*>(.*?)<\/a>/g, '$1');
