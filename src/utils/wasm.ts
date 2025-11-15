@@ -5,6 +5,9 @@
 
 /**
  * Checks if a file exists at the given path (Node.js only).
+ *
+ * @param path - Absolute path to validate
+ * @returns True when the file system entry is present
  */
 const fileExists = (path: string): boolean => {
     try {
