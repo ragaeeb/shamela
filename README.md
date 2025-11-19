@@ -15,21 +15,47 @@
 
 A universal TypeScript library for accessing and downloading Maktabah Shamela v4 APIs. The package runs in both Node.js and modern browsers, providing ergonomic helpers to interact with the Shamela API, download master and book databases, and retrieve book data programmatically.
 
+## Features
+
+- 🚀 **Full data lifecycle** – fetch metadata, download master and book databases, and query the results entirely in-memory.
+- 🔐 **Runtime configuration** – configure API credentials, WASM paths, and custom fetch/logging implementations at runtime.
+- 🧠 **Content tooling** – parse, sanitise, and post-process Arabic book content with utilities tailored for Shamela formatting.
+- 🌐 **Environment aware** – automatically selects optimal sql.js WASM bundles for Node.js, browsers, and bundled runtimes.
+- 🧪 **Well-tested** – comprehensive unit and end-to-end coverage to ensure reliable integrations.
+
 ## Table of Contents
 
+- [Features](#features)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
   - [Standard Node.js](#standard-nodejs)
   - [Next.js / Bundled Environments](#nextjs--bundled-environments)
   - [Browser](#browser)
 - [API Reference](#api-reference)
-  - [getMasterMetadata](#getmastermetadata)
-  - [downloadMasterDatabase](#downloadmasterdatabase)
-  - [getBookMetadata](#getbookmetadata)
-  - [downloadBook](#downloadbook)
-  - [getBook](#getbook)
-  - [getMaster](#getmaster)
-  - [getCoverUrl](#getcoverurl)
+  - [Configuration](#configuration)
+    - [configure](#configure)
+    - [resetConfig](#resetconfig)
+    - [getConfig](#getconfig)
+    - [getConfigValue](#getconfigvalue)
+    - [requireConfigValue](#requireconfigvalue)
+  - [Metadata & Downloads](#metadata--downloads)
+    - [getMasterMetadata](#getmastermetadata)
+    - [downloadMasterDatabase](#downloadmasterdatabase)
+    - [getBookMetadata](#getbookmetadata)
+    - [downloadBook](#downloadbook)
+    - [getCoverUrl](#getcoverurl)
+  - [Data Access](#data-access)
+    - [getBook](#getbook)
+    - [getMaster](#getmaster)
+  - [Content Utilities](#content-utilities)
+    - [parseContentRobust](#parsecontentrobust)
+    - [sanitizePageContent](#sanitizepagecontent)
+    - [splitPageBodyFromFooter](#splitpagebodyfromfooter)
+    - [removeArabicNumericPageMarkers](#removearabicnumericpagemarkers)
+    - [removeTagsExceptSpan](#removetagsexceptspan)
+  - [Supporting Utilities](#supporting-utilities)
+    - [buildUrl](#buildurl)
+    - [httpsGet](#httpsget)
 - [Examples](#examples)
 - [Data Structures](#data-structures)
 - [Next.js Demo](#nextjs-demo)
@@ -148,19 +174,73 @@ const book = await getBook(26592);
 
 ## API Reference
 
-### getMasterMetadata
+### Configuration
 
-Fetches metadata for the master database.
+#### configure
+
+Initialises runtime configuration including API credentials, custom fetch implementations, sql.js WASM location, and logger overrides.
+
+```typescript
+configure(options: ConfigureOptions): void
+```
+
+**Example:**
+
+```typescript
+import { configure } from 'shamela';
+
+configure({
+  apiKey: process.env.SHAMELA_API_KEY!,
+  booksEndpoint: process.env.SHAMELA_BOOKS_ENDPOINT!,
+  masterPatchEndpoint: process.env.SHAMELA_MASTER_ENDPOINT!,
+});
+```
+
+#### resetConfig
+
+Clears runtime overrides and restores the default silent logger.
+
+```typescript
+resetConfig(): void
+```
+
+Use this in tests or long-running processes when you need a clean configuration slate.
+
+#### getConfig
+
+Returns the merged configuration snapshot combining runtime overrides with environment variables.
+
+```typescript
+getConfig(): ShamelaConfig
+```
+
+#### getConfigValue
+
+Reads a single configuration value without throwing when it is missing.
+
+```typescript
+getConfigValue<Key extends ShamelaConfigKey>(key: Key): ShamelaConfig[Key] | undefined
+```
+
+#### requireConfigValue
+
+Retrieves a configuration entry and throws an error if the value is not present.
+
+```typescript
+requireConfigValue(key: Exclude<ShamelaConfigKey, 'fetchImplementation'>): string
+```
+
+### Metadata & Downloads
+
+#### getMasterMetadata
+
+Fetches metadata for the master database, including download URLs for the latest patches.
 
 ```typescript
 getMasterMetadata(version?: number): Promise<GetMasterMetadataResponsePayload>
 ```
 
 - `version` (optional): The version number to check for updates (defaults to 0)
-
-**Returns:** Promise resolving to master database metadata including download URL and version
-
-**Example:**
 
 ```typescript
 const metadata = await getMasterMetadata();
@@ -171,20 +251,16 @@ console.log(metadata.version); // Version number
 const updates = await getMasterMetadata(5);
 ```
 
-### downloadMasterDatabase
+#### downloadMasterDatabase
 
-Downloads the master database containing all books, authors, and categories.
+Downloads the master database containing all books, authors, and categories and writes it to disk or a custom writer.
 
 ```typescript
 downloadMasterDatabase(options: DownloadMasterOptions): Promise<string>
 ```
 
-- `options.masterMetadata` (optional): Pre-fetched metadata
+- `options.masterMetadata` (optional): Pre-fetched metadata to avoid an extra HTTP call
 - `options.outputFile.path`: Output file path (`.db`, `.sqlite`, or `.json`)
-
-**Returns:** Promise resolving to the output file path
-
-**Example:**
 
 ```typescript
 // Download as SQLite database
@@ -198,9 +274,9 @@ await downloadMasterDatabase({
 });
 ```
 
-### getBookMetadata
+#### getBookMetadata
 
-Fetches metadata for a specific book.
+Fetches metadata for a specific book, including patch release information.
 
 ```typescript
 getBookMetadata(id: number, options?: GetBookMetadataOptions): Promise<GetBookMetadataResponsePayload>
@@ -210,31 +286,23 @@ getBookMetadata(id: number, options?: GetBookMetadataOptions): Promise<GetBookMe
 - `options.majorVersion` (optional): Major version to check
 - `options.minorVersion` (optional): Minor version to check
 
-**Returns:** Promise resolving to book metadata
-
-**Example:**
-
 ```typescript
 const metadata = await getBookMetadata(26592);
 console.log(metadata.majorReleaseUrl);
 console.log(metadata.minorReleaseUrl);
 ```
 
-### downloadBook
+#### downloadBook
 
-Downloads and processes a book from Shamela.
+Downloads and processes a book from Shamela, writing it to JSON or SQLite on disk.
 
 ```typescript
 downloadBook(id: number, options: DownloadBookOptions): Promise<string>
 ```
 
 - `id`: Book identifier
-- `options.bookMetadata` (optional): Pre-fetched metadata
+- `options.bookMetadata` (optional): Pre-fetched metadata to avoid re-fetching
 - `options.outputFile.path`: Output file path (`.db`, `.sqlite`, or `.json`)
-
-**Returns:** Promise resolving to the output file path
-
-**Example:**
 
 ```typescript
 // Download as JSON
@@ -248,19 +316,28 @@ await downloadBook(26592, {
 });
 ```
 
-### getBook
+#### getCoverUrl
 
-Retrieves complete book data as a JavaScript object.
+Generates the URL for a book's cover image using the configured Shamela host.
+
+```typescript
+getCoverUrl(bookId: number): string
+```
+
+```typescript
+const coverUrl = getCoverUrl(26592);
+// Returns: "https://shamela.ws/covers/26592.jpg"
+```
+
+### Data Access
+
+#### getBook
+
+Retrieves complete book data as a JavaScript object, returning pages and title entries.
 
 ```typescript
 getBook(id: number): Promise<BookData>
 ```
-
-- `id`: Book identifier
-
-**Returns:** Promise resolving to book data with pages and titles
-
-**Example:**
 
 ```typescript
 const book = await getBook(26592);
@@ -269,17 +346,13 @@ console.log(book.titles?.length);
 console.log(book.pages[0].content);
 ```
 
-### getMaster
+#### getMaster
 
-Retrieves the entire master dataset as a JavaScript object.
+Retrieves the entire master dataset as a JavaScript object, including version information.
 
 ```typescript
 getMaster(): Promise<MasterData>
 ```
-
-**Returns:** Promise resolving to master data with authors, books, categories, and version
-
-**Example:**
 
 ```typescript
 const master = await getMaster();
@@ -289,23 +362,69 @@ console.log(master.authors.length);
 console.log(master.categories.length);
 ```
 
-### getCoverUrl
+### Content Utilities
 
-Generates the URL for a book's cover image.
+#### parseContentRobust
+
+Parses Shamela HTML snippets into structured lines while preserving title hierarchy and Arabic punctuation.
 
 ```typescript
-getCoverUrl(bookId: number): string
+parseContentRobust(content: string): Line[]
 ```
 
-- `bookId`: Book identifier
+```typescript
+const lines = parseContentRobust(rawHtml);
+lines.forEach((line) => console.log(line.id, line.text));
+```
 
-**Returns:** Cover image URL
+#### sanitizePageContent
 
-**Example:**
+Normalises page content by applying regex-based replacement rules tuned for Shamela sources.
 
 ```typescript
-const coverUrl = getCoverUrl(26592);
-// Returns: "https://shamela.ws/covers/26592.jpg"
+sanitizePageContent(text: string, rules?: Record<string, string>): string
+```
+
+#### splitPageBodyFromFooter
+
+Separates page body content from trailing footnotes using the default Shamela marker.
+
+```typescript
+splitPageBodyFromFooter(content: string, marker?: string): readonly [string, string]
+```
+
+#### removeArabicNumericPageMarkers
+
+Removes Arabic numeral markers enclosed in ⦗ ⦘, commonly used to denote page numbers.
+
+```typescript
+removeArabicNumericPageMarkers(text: string): string
+```
+
+#### removeTagsExceptSpan
+
+Strips anchor and hadeeth tags while preserving nested `<span>` elements.
+
+```typescript
+removeTagsExceptSpan(content: string): string
+```
+
+### Supporting Utilities
+
+#### buildUrl
+
+Constructs authenticated API URLs with query parameters and optional API key injection.
+
+```typescript
+buildUrl(endpoint: string, queryParams: Record<string, any>, useAuth?: boolean): URL
+```
+
+#### httpsGet
+
+Makes HTTPS GET requests using the configured fetch implementation, automatically parsing JSON responses and returning binary data otherwise.
+
+```typescript
+httpsGet<T extends Uint8Array | Record<string, any>>(url: string | URL, options?: { fetchImpl?: typeof fetch }): Promise<T>
 ```
 
 ## Examples

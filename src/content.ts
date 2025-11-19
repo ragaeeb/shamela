@@ -6,13 +6,18 @@ export type Line = {
 };
 
 const PUNCT_ONLY = /^[)\]\u00BB"”'’.,?!:\u061B\u060C\u061F\u06D4\u2026]+$/;
-const OPENER_AT_END = /[[({«“‘]$/;
 
+/**
+ * Merges punctuation-only lines into the preceding title when appropriate.
+ *
+ * @param lines - The processed line candidates to normalise
+ * @returns A new array where dangling punctuation fragments are appended to titles
+ */
 const mergeDanglingPunctuation = (lines: Line[]): Line[] => {
     const out: Line[] = [];
     for (const item of lines) {
         const last = out[out.length - 1];
-        if (last?.id && PUNCT_ONLY.test(item.text)) {
+        if (last && PUNCT_ONLY.test(item.text)) {
             last.text += item.text;
         } else {
             out.push(item);
@@ -21,23 +26,38 @@ const mergeDanglingPunctuation = (lines: Line[]): Line[] => {
     return out;
 };
 
+/**
+ * Normalises raw text into discrete line entries.
+ *
+ * @param text - Raw book content potentially containing inconsistent breaks
+ * @returns An array of trimmed line strings with empty entries removed
+ */
 const splitIntoLines = (text: string) => {
-    let normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-    if (!/\n/.test(normalized)) {
-        normalized = normalized.replace(/([.?!\u061F\u061B\u06D4\u2026]["“”'’»«)\]]?)\s+(?=[\u0600-\u06FF])/, '$1\n');
-    }
+    const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
     return normalized
         .split('\n')
-        .map((line) => line.replace(/^\*+/, '').trim())
+        .map((line) => line.trim())
         .filter(Boolean);
 };
 
+/**
+ * Converts plain text content into {@link Line} objects without title metadata.
+ *
+ * @param content - The text content to split into line structures
+ * @returns A {@link Line} array wrapping each detected sentence fragment
+ */
 const processTextContent = (content: string): Line[] => {
     return splitIntoLines(content).map((line) => ({ text: line }));
 };
 
+/**
+ * Extracts an attribute value from the provided HTML tag string.
+ *
+ * @param tag - Raw HTML tag source
+ * @param name - Attribute name to locate
+ * @returns The attribute value when found; otherwise undefined
+ */
 const extractAttribute = (tag: string, name: string): string | undefined => {
     const pattern = new RegExp(`${name}\\s*=\\s*("([^"]*)"|'([^']*)'|([^s>]+))`, 'i');
     const match = tag.match(pattern);
@@ -52,6 +72,12 @@ type Token =
     | { type: 'start'; name: string; attributes: Record<string, string | undefined> }
     | { type: 'end'; name: string };
 
+/**
+ * Breaks the provided HTML fragment into structural tokens.
+ *
+ * @param html - HTML fragment containing book content markup
+ * @returns A token stream describing text and span boundaries
+ */
 const tokenize = (html: string): Token[] => {
     const tokens: Token[] = [];
     const tagRegex = /<[^>]+>/g;
@@ -89,84 +115,138 @@ const tokenize = (html: string): Token[] => {
     return tokens;
 };
 
-const maybeAppendToPrevTitle = (result: Line[], raw: string) => {
-    const last = result[result.length - 1];
-    if (!raw) {
-        return false;
+/**
+ * Pushes the accumulated text as a new line to the result array.
+ */
+const createLine = (text: string, id?: string): Line | null => {
+    const trimmed = text.trim();
+    if (!trimmed) {
+        return null;
     }
-    if (!last || !last.id) {
-        return false;
-    }
-    if (!OPENER_AT_END.test(last.text)) {
-        return false;
-    }
-    if (/\n/.test(raw)) {
-        return false;
-    }
-    last.text += raw.replace(/^\s+/, '');
-    return true;
+    return id ? { id, text: trimmed } : { text: trimmed };
 };
 
+/**
+ * Finds the active title ID from the span stack.
+ */
+const getActiveTitleId = (spanStack: Array<{ isTitle: boolean; id?: string }>): string | undefined => {
+    for (let i = spanStack.length - 1; i >= 0; i--) {
+        const entry = spanStack[i];
+        if (entry.isTitle && entry.id) {
+            return entry.id;
+        }
+    }
+};
+
+/**
+ * Processes text content by handling line breaks and maintaining title context.
+ */
+const processTextWithLineBreaks = (
+    raw: string,
+    state: {
+        currentText: string;
+        currentId?: string;
+        result: Line[];
+        spanStack: Array<{ isTitle: boolean; id?: string }>;
+    },
+) => {
+    if (!raw) {
+        return;
+    }
+
+    const parts = raw.split('\n');
+
+    for (let i = 0; i < parts.length; i++) {
+        // Push previous line when crossing a line break
+        if (i > 0) {
+            const line = createLine(state.currentText, state.currentId);
+            if (line) {
+                state.result.push(line);
+            }
+            state.currentText = '';
+
+            // Preserve title ID if still inside a title span
+            const activeTitleId = getActiveTitleId(state.spanStack);
+            state.currentId = activeTitleId || undefined;
+        }
+
+        // Append the text part
+        if (parts[i]) {
+            state.currentText += parts[i];
+        }
+    }
+};
+
+/**
+ * Handles the start of a span tag, updating the stack and current ID.
+ */
+const handleSpanStart = (
+    token: { attributes: Record<string, string | undefined> },
+    state: {
+        currentId?: string;
+        spanStack: Array<{ isTitle: boolean; id?: string }>;
+    },
+) => {
+    const dataType = token.attributes['data-type'];
+    const isTitle = dataType === 'title';
+
+    let id: string | undefined;
+    if (isTitle) {
+        const rawId = token.attributes.id ?? '';
+        id = rawId.replace(/^toc-/, '');
+    }
+
+    state.spanStack.push({ id, isTitle });
+
+    // First title span on the current physical line wins
+    if (isTitle && id && !state.currentId) {
+        state.currentId = id;
+    }
+};
+
+/**
+ * Parses Shamela HTML content into structured lines while preserving headings.
+ *
+ * @param content - The raw HTML markup representing a page
+ * @returns An array of {@link Line} objects containing text and optional IDs
+ */
 export const parseContentRobust = (content: string): Line[] => {
+    // Normalize line endings first
+    content = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+    // Fast path when there are no span tags at all
     if (!/<span[^>]*>/i.test(content)) {
-        return processTextContent(content);
+        return mergeDanglingPunctuation(processTextContent(content));
     }
 
     const tokens = tokenize(`<root>${content}</root>`);
-    const result: Line[] = [];
-
-    let titleDepth = 0;
-    let currentTitle: Line | null = null;
-
-    const pushText = (raw: string) => {
-        if (!raw) {
-            return;
-        }
-
-        if (titleDepth > 0 && currentTitle) {
-            const cleaned = titleDepth === 1 ? raw.replace(/^\s+/, '') : raw;
-            currentTitle.text += cleaned;
-            return;
-        }
-
-        if (maybeAppendToPrevTitle(result, raw)) {
-            return;
-        }
-
-        const text = raw.trim();
-        if (text) {
-            result.push(...processTextContent(text));
-        }
+    const state = {
+        currentId: undefined as string | undefined,
+        currentText: '',
+        result: [] as Line[],
+        spanStack: [] as Array<{ isTitle: boolean; id?: string }>,
     };
 
+    // Process all tokens
     for (const token of tokens) {
         if (token.type === 'text') {
-            pushText(token.value);
+            processTextWithLineBreaks(token.value, state);
         } else if (token.type === 'start' && token.name === 'span') {
-            const dataType = token.attributes['data-type'];
-            if (dataType === 'title') {
-                if (titleDepth === 0) {
-                    const id = token.attributes.id?.replace(/^toc-/, '') ?? '';
-                    currentTitle = { id, text: '' };
-                    result.push(currentTitle);
-                }
-                titleDepth += 1;
-            }
+            handleSpanStart(token, state);
         } else if (token.type === 'end' && token.name === 'span') {
-            if (titleDepth > 0) {
-                titleDepth -= 1;
-                if (titleDepth === 0) {
-                    currentTitle = null;
-                }
-            }
+            // Closing a span does NOT end the line; trailing text stays on the same line
+            state.spanStack.pop();
         }
     }
 
-    const cleaned = result.map((line) => (line.id ? line : { ...line, text: line.text.trim() }));
+    // Flush any trailing text
+    const finalLine = createLine(state.currentText, state.currentId);
+    if (finalLine) {
+        state.result.push(finalLine);
+    }
 
-    return mergeDanglingPunctuation(cleaned.map((line) => (line.id ? line : { ...line, text: line.text }))).filter(
-        (line) => line.text.length > 0,
-    );
+    // Merge punctuation-only lines and drop empties
+    return mergeDanglingPunctuation(state.result).filter((line) => line.text.length > 0);
 };
 
 const DEFAULT_COMPILED_RULES = Object.entries(DEFAULT_SANITIZATION_RULES).map(([pattern, replacement]) => ({
@@ -175,7 +255,10 @@ const DEFAULT_COMPILED_RULES = Object.entries(DEFAULT_SANITIZATION_RULES).map(([
 }));
 
 /**
- * Compiles sanitization rules into RegExp objects for performance
+ * Compiles sanitisation rules into RegExp objects for reuse.
+ *
+ * @param rules - Key/value replacements used during sanitisation
+ * @returns A list of compiled regular expression rules
  */
 const getCompiledRules = (rules: Record<string, string>) => {
     if (rules === DEFAULT_SANITIZATION_RULES) {
@@ -193,10 +276,11 @@ const getCompiledRules = (rules: Record<string, string>) => {
 };
 
 /**
- * Sanitizes page content by applying regex replacement rules
- * @param text - The text to sanitize
- * @param rules - Optional custom rules (defaults to DEFAULT_SANITIZATION_RULES)
- * @returns The sanitized text
+ * Sanitises page content by applying regex replacement rules.
+ *
+ * @param text - The text to clean
+ * @param rules - Optional custom replacements, defaults to {@link DEFAULT_SANITIZATION_RULES}
+ * @returns The sanitised content
  */
 export const sanitizePageContent = (
     text: string,
@@ -212,6 +296,13 @@ export const sanitizePageContent = (
     return content;
 };
 
+/**
+ * Splits a page body from its trailing footnotes using a marker string.
+ *
+ * @param content - Combined body and footnote text
+ * @param footnoteMarker - Marker indicating the start of footnotes
+ * @returns A tuple containing the page body followed by the footnote section
+ */
 export const splitPageBodyFromFooter = (content: string, footnoteMarker = '_________') => {
     let footnote = '';
     const indexOfFootnote = content.lastIndexOf(footnoteMarker);
@@ -224,16 +315,31 @@ export const splitPageBodyFromFooter = (content: string, footnoteMarker = '_____
     return [content, footnote] as const;
 };
 
+/**
+ * Removes Arabic numeral page markers enclosed in turtle ⦗ ⦘ brackets.
+ * Replaces the marker along with up to two preceding whitespace characters
+ * (space or carriage return) and up to one following whitespace character
+ * with a single space.
+ *
+ * @param text - Text potentially containing page markers
+ * @returns The text with numeric markers replaced by a single space
+ */
 export const removeArabicNumericPageMarkers = (text: string) => {
-    return text.replace(/\s?⦗[\u0660-\u0669]+⦘\s?/, ' ');
+    return text.replace(/(?: |\r){0,2}⦗[\u0660-\u0669]+⦘(?: |\r)?/g, ' ');
 };
 
+/**
+ * Removes anchor and hadeeth tags from the content while preserving spans.
+ *
+ * @param content - HTML string containing various tags
+ * @returns The content with only span tags retained
+ */
 export const removeTagsExceptSpan = (content: string) => {
     // Remove <a> tags and their content, keeping only the text inside
-    content = content.replace(/<a[^>]*>(.*?)<\/a>/g, '$1');
+    content = content.replace(/<a[^>]*>(.*?)<\/a>/gs, '$1');
 
     // Remove <hadeeth> tags (both self-closing, with content, and numbered)
-    content = content.replace(/<hadeeth[^>]*>|<\/hadeeth>|<hadeeth-\d+>/g, '');
+    content = content.replace(/<hadeeth[^>]*>|<\/hadeeth>|<hadeeth-\d+>/gs, '');
 
     return content;
 };
