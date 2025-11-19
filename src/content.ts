@@ -317,12 +317,15 @@ export const splitPageBodyFromFooter = (content: string, footnoteMarker = '_____
 
 /**
  * Removes Arabic numeral page markers enclosed in turtle ⦗ ⦘ brackets.
+ * Replaces the marker along with up to two preceding whitespace characters
+ * (space or carriage return) and up to one following whitespace character
+ * with a single space.
  *
  * @param text - Text potentially containing page markers
- * @returns The text with numeric markers replaced by a space
+ * @returns The text with numeric markers replaced by a single space
  */
 export const removeArabicNumericPageMarkers = (text: string) => {
-    return text.replace(/\s*⦗[\u0660-\u0669]+⦘\s*/g, ' ');
+    return text.replace(/(?: |\r){0,2}⦗[\u0660-\u0669]+⦘(?: |\r)?/g, ' ');
 };
 
 /**

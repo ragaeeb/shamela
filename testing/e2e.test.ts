@@ -7,7 +7,9 @@ import { downloadBook, downloadMasterDatabase, getBook, getCoverUrl, getMaster }
 import { configure, resetConfig } from '../src/config';
 import { createTempDir } from '../src/utils/io';
 
-describe('e2e', () => {
+const e2eDescribe = process.env.RUN_E2E === 'true' ? describe : describe.skip;
+
+e2eDescribe('e2e', () => {
     let outputDir: string;
 
     beforeAll(() => {
@@ -23,7 +25,7 @@ describe('e2e', () => {
     });
 
     afterEach(async () => {
-        await fs.rm(outputDir, { recursive: true, force: true });
+        await fs.rm(outputDir, { force: true, recursive: true });
     });
 
     describe('downloadMasterDatabase', () => {

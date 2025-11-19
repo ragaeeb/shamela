@@ -355,11 +355,25 @@ describe('content', () => {
             expect(actual).toBe('بِمُوسَى مِنْ');
         });
 
-        it('should handle the double carriage returns', () => {
+        it('should handle the double carriage returns before', () => {
             const input = `أَبِي\r\r⦗٦٣⦘\rحَازِمٍ،`;
             const actual = removeArabicNumericPageMarkers(input);
 
             expect(actual).toBe('أَبِي حَازِمٍ،');
+        });
+
+        it('should remove the page marker before the period', () => {
+            const input = 'وَاسْتَسْلَمَ " ⦗١١⦘. خَالَفَهُ';
+            const actual = removeArabicNumericPageMarkers(input);
+
+            expect(actual).toBe('وَاسْتَسْلَمَ " . خَالَفَهُ');
+        });
+
+        it('should keep a single carriage return since it should only take out at most a single carriage return after the markers', () => {
+            const input = 'رَأْسُهُ وَيُسَمَّى»\r⦗٣٧٣⦘\r\r٤٥٣٣ - أَخْبَرَنَا هَارُونُ';
+            const actual = removeArabicNumericPageMarkers(input);
+
+            expect(actual).toBe('رَأْسُهُ وَيُسَمَّى» \r٤٥٣٣ - أَخْبَرَنَا هَارُونُ');
         });
     });
 
