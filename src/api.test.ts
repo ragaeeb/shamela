@@ -1,11 +1,10 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { zipSync } from 'fflate';
-
-import { configure, resetConfig } from './config';
 import { downloadMasterDatabase, getBookMetadata, getMaster } from './api';
+import { configure, resetConfig } from './config';
+import { createTables as createMasterTables } from './db/master';
 import { createDatabase } from './db/sqlite';
 import { Tables } from './db/types';
-import { createTables as createMasterTables } from './db/master';
 import type { MasterData } from './types';
 
 const originalFetch = globalThis.fetch;
