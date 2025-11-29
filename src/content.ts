@@ -305,7 +305,7 @@ export const sanitizePageContent = (
  */
 export const splitPageBodyFromFooter = (content: string, footnoteMarker = '_________') => {
     let footnote = '';
-    const indexOfFootnote = content.lastIndexOf(footnoteMarker);
+    const indexOfFootnote = content.indexOf(footnoteMarker);
 
     if (indexOfFootnote >= 0) {
         footnote = content.slice(indexOfFootnote + footnoteMarker.length);
