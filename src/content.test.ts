@@ -332,6 +332,16 @@ describe('content', () => {
             expect(body).toBe('content only');
             expect(footer).toBe('');
         });
+
+        it('should handle the double footer', () => {
+            // example: shamela/book/25794/5117
+            const input = 'A\r_________\rB\r_________\rC';
+
+            const [body, footer] = splitPageBodyFromFooter(input);
+
+            expect(body).toBe('A\r');
+            expect(footer).toBe('\rB\r_________\rC');
+        });
     });
 
     describe('removeArabicNumericPageMarkers', () => {

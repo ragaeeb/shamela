@@ -30,7 +30,8 @@ A universal TypeScript library for accessing and downloading Maktabah Shamela v4
 - [Quick Start](#quick-start)
   - [Standard Node.js](#standard-nodejs)
   - [Next.js / Bundled Environments](#nextjs--bundled-environments)
-  - [Browser](#browser)
+  - [Browser (Full API)](#browser-full-api)
+  - [Browser (Content Utilities Only)](#browser-content-utilities-only)
 - [API Reference](#api-reference)
   - [Configuration](#configuration)
     - [configure](#configure)
@@ -155,7 +156,7 @@ export async function downloadBookAction(bookId: number) {
 
 **Important:** Only import `shamela` in server-side code (Server Actions, API Routes, or Server Components). Never import in client components or `layout.tsx`.
 
-### Browser
+### Browser (Full API)
 
 In browsers, the library automatically uses a CDN-hosted WASM file:
 
@@ -171,6 +172,35 @@ configure({
 
 const book = await getBook(26592);
 ```
+
+### Browser (Content Utilities Only)
+
+If you only need the content processing utilities (sanitization, parsing, etc.) without the database functionality, use the lightweight `shamela/content` export:
+
+```typescript
+import {
+  sanitizePageContent,
+  splitPageBodyFromFooter,
+  removeTagsExceptSpan,
+  parseContentRobust,
+} from 'shamela/content';
+
+// Process content without loading sql.js (~1.5KB gzipped vs ~900KB)
+const clean = removeTagsExceptSpan(sanitizePageContent(rawContent));
+const [body, footnotes] = splitPageBodyFromFooter(clean);
+```
+
+This is ideal for:
+- Client-side React/Next.js components
+- Bundled environments where you want to avoid sql.js WASM
+- Processing pre-downloaded book data
+
+**Available exports from `shamela/content`:**
+- `parseContentRobust` - Parse HTML into structured lines
+- `sanitizePageContent` - Normalize Arabic text
+- `splitPageBodyFromFooter` - Separate body from footnotes
+- `removeArabicNumericPageMarkers` - Remove page markers
+- `removeTagsExceptSpan` - Strip HTML except spans
 
 ## API Reference
 

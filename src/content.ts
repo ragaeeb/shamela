@@ -305,7 +305,7 @@ export const sanitizePageContent = (
  */
 export const splitPageBodyFromFooter = (content: string, footnoteMarker = '_________') => {
     let footnote = '';
-    const indexOfFootnote = content.lastIndexOf(footnoteMarker);
+    const indexOfFootnote = content.indexOf(footnoteMarker);
 
     if (indexOfFootnote >= 0) {
         footnote = content.slice(indexOfFootnote + footnoteMarker.length);
@@ -342,4 +342,13 @@ export const removeTagsExceptSpan = (content: string) => {
     content = content.replace(/<hadeeth[^>]*>|<\/hadeeth>|<hadeeth-\d+>/gs, '');
 
     return content;
+};
+
+/**
+ * Normalizes Shamela HTML for CSS styling:
+ * - Converts <hadeeth-N> to <span class="hadeeth">
+ * - Converts </hadeeth> or standalone <hadeeth> to </span>
+ */
+export const normalizeHtml = (html: string): string => {
+    return html.replace(/<hadeeth-\d+>/gi, '<span class="hadeeth">').replace(/<\s*\/?\s*hadeeth\s*>/gi, '</span>');
 };
