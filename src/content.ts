@@ -343,3 +343,12 @@ export const removeTagsExceptSpan = (content: string) => {
 
     return content;
 };
+
+/**
+ * Normalizes Shamela HTML for CSS styling:
+ * - Converts <hadeeth-N> to <span class="hadeeth">
+ * - Converts </hadeeth> or standalone <hadeeth> to </span>
+ */
+export const normalizeHtml = (html: string): string => {
+    return html.replace(/<hadeeth-\d+>/gi, '<span class="hadeeth">').replace(/<\s*\/?\s*hadeeth\s*>/gi, '</span>');
+};

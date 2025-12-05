@@ -13,11 +13,11 @@
         "@types/react": "^19.2.7",
         "@types/react-dom": "^19.2.3",
         "@types/sql.js": "^1.4.9",
-        "next": "^16.0.5",
-        "react": "^19.2.0",
-        "react-dom": "^19.2.0",
+        "next": "^16.0.7",
+        "react": "^19.2.1",
+        "react-dom": "^19.2.1",
         "semantic-release": "^25.0.2",
-        "tsdown": "^0.16.8",
+        "tsdown": "^0.17.0",
         "typescript": "^5.9.3"
     },
     "engines": {
@@ -26,12 +26,21 @@
     },
     "exports": {
         ".": {
+            "default": "./dist/index.js",
             "import": "./dist/index.js",
             "types": "./dist/index.d.ts"
+        },
+        "./content": {
+            "default": "./dist/content.js",
+            "import": "./dist/content.js",
+            "types": "./dist/content.d.ts"
+        },
+        "./types": {
+            "types": "./dist/types.d.ts"
         }
     },
     "files": [
-        "dist/**"
+        "dist"
     ],
     "homepage": "https://github.com/ragaeeb/shamela",
     "keywords": [
@@ -61,5 +70,5 @@
     "source": "src/index.ts",
     "type": "module",
     "types": "dist/index.d.ts",
-    "version": "1.3.3"
+    "version": "1.3.4"
 }
