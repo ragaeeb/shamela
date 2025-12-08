@@ -1,58 +1,60 @@
 import { describe, expect, it } from 'bun:test';
 
 import {
+    htmlToMarkdown,
+    mapPageCharacterContent,
+    normalizeHtml,
     parseContentRobust,
     removeArabicNumericPageMarkers,
     removeTagsExceptSpan,
-    sanitizePageContent,
     splitPageBodyFromFooter,
 } from './content';
-import { DEFAULT_SANITIZATION_RULES } from './utils/constants';
+import { DEFAULT_MAPPING_RULES } from './utils/constants';
 
 describe('content', () => {
-    describe('sanitizePageContent', () => {
+    describe('mapPageCharacterContent', () => {
         it('should remove 舄 character', () => {
             const input = 'Hello 舄 world 舄 test';
             const expected = 'Hello  world  test';
-            expect(sanitizePageContent(input)).toBe(expected);
+            expect(mapPageCharacterContent(input)).toBe(expected);
         });
 
         it('should remove malformed img tags', () => {
             const input = "Text <img src='test'>> more text <img alt='test'>>";
             const expected = 'Text  more text ';
-            expect(sanitizePageContent(input)).toBe(expected);
+            expect(mapPageCharacterContent(input)).toBe(expected);
         });
 
         it('should replace ﵌ with Arabic blessing', () => {
             const input = 'Prophet Muhammad ﵌ was born';
             const expected = 'Prophet Muhammad صلى الله عليه وآله وسلم was born';
-            expect(sanitizePageContent(input)).toBe(expected);
+            expect(mapPageCharacterContent(input)).toBe(expected);
         });
 
         it('should apply all default rules in combination', () => {
             const input = "Test 舄 content <img src='test'>> with ﵌ multiple rules";
             const expected = 'Test  content  with صلى الله عليه وآله وسلم multiple rules';
-            expect(sanitizePageContent(input)).toBe(expected);
+            expect(mapPageCharacterContent(input)).toBe(expected);
         });
 
         it('should handle multiple occurrences of same pattern', () => {
             const input = '舄舄舄 multiple 舄 occurrences 舄';
             const expected = ' multiple  occurrences ';
-            expect(sanitizePageContent(input)).toBe(expected);
+            expect(mapPageCharacterContent(input)).toBe(expected);
         });
 
         it('should handle empty string', () => {
-            expect(sanitizePageContent('')).toBe('');
+            expect(mapPageCharacterContent('')).toBe('');
         });
 
         it('should handle text with no matches', () => {
             const input = 'Normal text with no special characters';
-            expect(sanitizePageContent(input)).toBe(input);
+            expect(mapPageCharacterContent(input)).toBe(input);
         });
 
         it('should handle text with only whitespace', () => {
             const input = '   \n\t  ';
-            expect(sanitizePageContent(input)).toBe(input);
+            expect(mapPageCharacterContent(input)).toBe(input);
         });
     });
 
@@ -64,32 +66,32 @@ describe('content', () => {
             };
             const input = 'foo test 123 舄'; // 舄 should remain since not in custom rules
             const expected = 'bar test [NUMBER] 舄';
-            expect(sanitizePageContent(input, customRules)).toBe(expected);
+            expect(mapPageCharacterContent(input, customRules)).toBe(expected);
         });
 
         it('should override default rules with custom ones', () => {
             const customRules = {
-                ...DEFAULT_SANITIZATION_RULES,
+                ...DEFAULT_MAPPING_RULES,
                 舄: '[REMOVED]', // Override default removal with replacement
             };
             const input = 'Test 舄 override';
             const expected = 'Test [REMOVED] override';
-            expect(sanitizePageContent(input, customRules)).toBe(expected);
+            expect(mapPageCharacterContent(input, customRules)).toBe(expected);
         });
 
         it('should extend default rules with additional ones', () => {
             const customRules = {
-                ...DEFAULT_SANITIZATION_RULES,
+                ...DEFAULT_MAPPING_RULES,
                 extra: 'EXTRA',
             };
             const input = 'Test 舄 extra ﵌ content';
             const expected = 'Test  EXTRA صلى الله عليه وآله وسلم content';
-            expect(sanitizePageContent(input, customRules)).toBe(expected);
+            expect(mapPageCharacterContent(input, customRules)).toBe(expected);
         });
 
         it('should handle empty custom rules object', () => {
             const input = 'Test 舄 content ﵌';
-            expect(sanitizePageContent(input, {})).toBe(input); // No rules applied
+            expect(mapPageCharacterContent(input, {})).toBe(input); // No rules applied
         });
 
         it('should handle complex regex patterns in custom rules', () => {
@@ -99,7 +101,7 @@ describe('content', () => {
             };
             const input = 'This test has 123 and some text';
             const expected = '[FOUR] [FOUR] has X and [FOUR] [FOUR]';
-            expect(sanitizePageContent(input, customRules)).toBe(expected);
+            expect(mapPageCharacterContent(input, customRules)).toBe(expected);
         });
 
         it('should handle special regex characters in patterns', () => {
@@ -109,7 +111,7 @@ describe('content', () => {
             };
             const input = 'Price $50 and [some text] here';
             const expected = 'Price [PRICE] and (brackets) here';
-            expect(sanitizePageContent(input, customRules)).toBe(expected);
+            expect(mapPageCharacterContent(input, customRules)).toBe(expected);
         });
 
         it('should handle rules with empty replacement strings', () => {
@@ -119,7 +121,7 @@ describe('content', () => {
             };
             const input = 'remove this and replace that';
             const expected = ' this and REPLACED that';
-            expect(sanitizePageContent(input, customRules)).toBe(expected);
+            expect(mapPageCharacterContent(input, customRules)).toBe(expected);
         });
     });
 
@@ -127,26 +129,26 @@ describe('content', () => {
         it('should handle very long strings', () => {
             const input = `${'a'.repeat(10000)}舄${'b'.repeat(10000)}`;
             const expected = `${'a'.repeat(10000)}${'b'.repeat(10000)}`;
-            expect(sanitizePageContent(input)).toBe(expected);
+            expect(mapPageCharacterContent(input)).toBe(expected);
         });
 
         it('should handle unicode characters correctly', () => {
             const input = 'Test 舄 emoji 😀 and ﵌ unicode';
             const expected = 'Test  emoji 😀 and صلى الله عليه وآله وسلم unicode';
-            expect(sanitizePageContent(input)).toBe(expected);
+            expect(mapPageCharacterContent(input)).toBe(expected);
         });
 
         it('should handle newlines and special whitespace', () => {
             const input = 'Line1\n舄\nLine2\t﵌\rLine3';
             const expected = 'Line1\n\nLine2\tصلى الله عليه وآله وسلم\rLine3';
-            expect(sanitizePageContent(input)).toBe(expected);
+            expect(mapPageCharacterContent(input)).toBe(expected);
         });
 
         it('should maintain object reference equality for default rules', () => {
             // This tests the performance optimization path
             const input = 'test 舄 content';
-            const result1 = sanitizePageContent(input);
-            const result2 = sanitizePageContent(input, DEFAULT_SANITIZATION_RULES);
+            const result1 = mapPageCharacterContent(input);
+            const result2 = mapPageCharacterContent(input, DEFAULT_MAPPING_RULES);
             expect(result1).toBe(result2);
             expect(result1).toBe('test  content');
         });
@@ -157,7 +159,7 @@ describe('content', () => {
                 nonexistent: 'replacement',
             };
             const input = 'This text has no matches';
-            expect(sanitizePageContent(input, customRules)).toBe(input);
+            expect(mapPageCharacterContent(input, customRules)).toBe(input);
         });
 
         it('should handle overlapping patterns correctly', () => {
@@ -168,7 +170,7 @@ describe('content', () => {
             const input = 'abc def';
             // Since 'ab' is processed first (object iteration order), 'abc' becomes 'Xc'
             // Then 'abc' pattern won't match 'Xc', so result is 'Xc def'
-            const result = sanitizePageContent(input, customRules);
+            const result = mapPageCharacterContent(input, customRules);
             expect(result).toMatch(/^[XY]c? def$/); // Either 'Xc def' or 'Y def' depending on iteration order
         });
     });
@@ -181,7 +183,7 @@ describe('content', () => {
             const input = 'test [ content';
 
             // This should throw when creating RegExp, testing error handling
-            expect(() => sanitizePageContent(input, customRules)).toThrow();
+            expect(() => mapPageCharacterContent(input, customRules)).toThrow();
         });
 
         it('should handle rules with literal string patterns', () => {
@@ -190,7 +192,7 @@ describe('content', () => {
             };
             const input = 'Say hello world to everyone';
             const expected = 'Say hi earth to everyone';
-            expect(sanitizePageContent(input, customRules)).toBe(expected);
+            expect(mapPageCharacterContent(input, customRules)).toBe(expected);
         });
     });
 
@@ -417,6 +419,155 @@ describe('content', () => {
                 'A <a href="inr://man-5898">B</a>. C<a href="inr://man-3414">D\r⦗٩⦘ E</a> F <hadeeth-29254>G<hadeeth>';
             const actual = removeTagsExceptSpan(input);
             expect(actual).toEqual(`A B. CD\r⦗٩⦘ E F G`);
+        });
+    });
+
+    describe('htmlToMarkdown', () => {
+        it('should convert title spans with double quotes to markdown headers', () => {
+            const input = '<span data-type="title">Chapter One</span>';
+            expect(htmlToMarkdown(input)).toBe('## Chapter One');
+        });
+
+        it('should convert title spans with single quotes to markdown headers', () => {
+            const input = "<span data-type='title'>Chapter Two</span>";
+            expect(htmlToMarkdown(input)).toBe('## Chapter Two');
+        });
+
+        it('should handle title spans with additional attributes', () => {
+            const input = '<span id="toc-1" data-type="title" class="heading">Introduction</span>';
+            expect(htmlToMarkdown(input)).toBe('## Introduction');
+        });
+
+        it('should strip narrator links but keep text', () => {
+            const input = '<a href="inr://man-1234">محمد بن أحمد</a>';
+            expect(htmlToMarkdown(input)).toBe('محمد بن أحمد');
+        });
+
+        it('should handle narrator links with single quotes', () => {
+            const input = "<a href='inr://man-5678'>علي بن أبي طالب</a>";
+            expect(htmlToMarkdown(input)).toBe('علي بن أبي طالب');
+        });
+
+        it('should strip all remaining HTML tags', () => {
+            const input = '<div><p>Hello <strong>World</strong></p></div>';
+            expect(htmlToMarkdown(input)).toBe('Hello World');
+        });
+
+        it('should handle empty string', () => {
+            expect(htmlToMarkdown('')).toBe('');
+        });
+
+        it('should handle text without any HTML tags', () => {
+            const input = 'Plain text without any tags';
+            expect(htmlToMarkdown(input)).toBe('Plain text without any tags');
+        });
+
+        it('should handle multiple title spans', () => {
+            const input = '<span data-type="title">First</span>\n<span data-type="title">Second</span>';
+            expect(htmlToMarkdown(input)).toBe('## First\n## Second');
+        });
+
+        it('should handle mixed content with titles and narrator links', () => {
+            const input = '<span data-type="title">باب الإيمان</span>\nحَدَّثَنَا <a href="inr://man-123">أبو بكر</a>';
+            expect(htmlToMarkdown(input)).toBe('## باب الإيمان\nحَدَّثَنَا أبو بكر');
+        });
+
+        it('should handle nested tags within title spans', () => {
+            const input = '<span data-type="title">Title with <b>bold</b></span>';
+            // The inner <b> tags remain in the title content, then get stripped by the final regex
+            expect(htmlToMarkdown(input)).toBe('## Title with bold');
+        });
+
+        it('should preserve whitespace and line breaks', () => {
+            const input = '<span data-type="title">Title</span>\r\nContent\r\nMore content';
+            expect(htmlToMarkdown(input)).toBe('## Title\r\nContent\r\nMore content');
+        });
+
+        it('should handle spans without data-type title attribute', () => {
+            const input = '<span id="link-123">Regular span</span>';
+            expect(htmlToMarkdown(input)).toBe('Regular span');
+        });
+
+        it('should handle regular anchor tags (non-narrator links)', () => {
+            const input = '<a href="https://example.com">External link</a>';
+            expect(htmlToMarkdown(input)).toBe('External link');
+        });
+
+        it('should handle self-closing tags', () => {
+            const input = 'Text<br/>More text<hr/>';
+            expect(htmlToMarkdown(input)).toBe('TextMore text');
+        });
+
+        it('should handle complex real-world content', () => {
+            const input = `<span data-type="title" id=toc-10>كِتَابُ الْإِيمَانِ.</span>
+١ - <span data-type="title" id=toc-11>[باب مَعْرِفَةِ الإِيمَانِ]</span>
+حَدَّثَنَا <a href="inr://man-3889">أَبُو بَكْرِ بْنُ أَبِي شَيْبَةَ</a>`;
+
+            const expected = `## كِتَابُ الْإِيمَانِ.
+١ - ## [باب مَعْرِفَةِ الإِيمَانِ]
+حَدَّثَنَا أَبُو بَكْرِ بْنُ أَبِي شَيْبَةَ`;
+
+            expect(htmlToMarkdown(input)).toBe(expected);
+        });
+
+        it('should strip hadeeth tags', () => {
+            const input = '<hadeeth-123>Hadith content<hadeeth>';
+            expect(htmlToMarkdown(input)).toBe('Hadith content');
+        });
+
+        it('should handle case-insensitive tag matching', () => {
+            const input = '<SPAN data-type="title">UPPERCASE TAGS</SPAN>';
+            expect(htmlToMarkdown(input)).toBe('## UPPERCASE TAGS');
+        });
+    });
+
+    describe('normalizeHtml', () => {
+        it('should convert numbered hadeeth tags to span with class', () => {
+            const input = '<hadeeth-123>Hadith text';
+            expect(normalizeHtml(input)).toBe('<span class="hadeeth">Hadith text');
+        });
+
+        it('should convert closing hadeeth tags to closing span', () => {
+            const input = 'text</hadeeth>';
+            expect(normalizeHtml(input)).toBe('text</span>');
+        });
+
+        it('should convert standalone hadeeth tags to closing span', () => {
+            const input = 'text<hadeeth>more';
+            expect(normalizeHtml(input)).toBe('text</span>more');
+        });
+
+        it('should handle complete hadeeth tag pairs', () => {
+            const input = '<hadeeth-456>Hadith content</hadeeth>';
+            expect(normalizeHtml(input)).toBe('<span class="hadeeth">Hadith content</span>');
+        });
+
+        it('should handle multiple hadeeth tags', () => {
+            const input = '<hadeeth-1>First</hadeeth> text <hadeeth-2>Second</hadeeth>';
+            expect(normalizeHtml(input)).toBe(
+                '<span class="hadeeth">First</span> text <span class="hadeeth">Second</span>',
+            );
+        });
+
+        it('should handle empty string', () => {
+            expect(normalizeHtml('')).toBe('');
+        });
+
+        it('should preserve other HTML tags', () => {
+            const input = '<span data-type="title">Title</span><hadeeth-123>Content</hadeeth>';
+            expect(normalizeHtml(input)).toBe(
+                '<span data-type="title">Title</span><span class="hadeeth">Content</span>',
+            );
+        });
+
+        it('should handle case-insensitive matching', () => {
+            const input = '<HADEETH-789>Text</HADEETH>';
+            expect(normalizeHtml(input)).toBe('<span class="hadeeth">Text</span>');
+        });
+
+        it('should handle hadeeth tags with whitespace', () => {
+            const input = 'text< /hadeeth >';
+            expect(normalizeHtml(input)).toBe('text</span>');
         });
     });
 

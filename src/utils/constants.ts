@@ -11,9 +11,9 @@ export const DEFAULT_MASTER_METADATA_VERSION = 0;
 export const UNKNOWN_VALUE_PLACEHOLDER = '99999';
 
 /**
- * Default rules to sanitize page content.
+ * Default rules to map characters from page content.
  */
-export const DEFAULT_SANITIZATION_RULES: Record<string, string> = {
+export const DEFAULT_MAPPING_RULES: Record<string, string> = {
     '<img[^>]*>>': '',
     舄: '',
     '﵀': 'رَحِمَهُ ٱللَّٰهُ',
@@ -29,6 +29,6 @@ export const DEFAULT_SANITIZATION_RULES: Record<string, string> = {
     '﵍': 'عَلَيْهِ ٱلسَّلَٰمُ',
     '﵎': 'تبارك وتعالى',
     '﵏': 'رَحِمَهُمُ ٱللَّٰهُ',
-    '﷽': '',
+    '﷽': 'بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ',
     '﷿': 'عَزَّ وَجَلَّ',
 };

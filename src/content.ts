@@ -1,4 +1,4 @@
-import { DEFAULT_SANITIZATION_RULES } from './utils/constants';
+import { DEFAULT_MAPPING_RULES } from './utils/constants';
 
 export type Line = {
     id?: string;
@@ -249,7 +249,7 @@ export const parseContentRobust = (content: string): Line[] => {
     return mergeDanglingPunctuation(state.result).filter((line) => line.text.length > 0);
 };
 
-const DEFAULT_COMPILED_RULES = Object.entries(DEFAULT_SANITIZATION_RULES).map(([pattern, replacement]) => ({
+const DEFAULT_COMPILED_RULES = Object.entries(DEFAULT_MAPPING_RULES).map(([pattern, replacement]) => ({
     regex: new RegExp(pattern, 'g'),
     replacement,
 }));
@@ -261,7 +261,7 @@ const DEFAULT_COMPILED_RULES = Object.entries(DEFAULT_SANITIZATION_RULES).map(([
  * @returns A list of compiled regular expression rules
  */
 const getCompiledRules = (rules: Record<string, string>) => {
-    if (rules === DEFAULT_SANITIZATION_RULES) {
+    if (rules === DEFAULT_MAPPING_RULES) {
         return DEFAULT_COMPILED_RULES;
     }
 
@@ -279,12 +279,12 @@ const getCompiledRules = (rules: Record<string, string>) => {
  * Sanitises page content by applying regex replacement rules.
  *
  * @param text - The text to clean
- * @param rules - Optional custom replacements, defaults to {@link DEFAULT_SANITIZATION_RULES}
+ * @param rules - Optional custom replacements, defaults to {@link DEFAULT_MAPPING_RULES}
  * @returns The sanitised content
  */
-export const sanitizePageContent = (
+export const mapPageCharacterContent = (
     text: string,
-    rules: Record<string, string> = DEFAULT_SANITIZATION_RULES,
+    rules: Record<string, string> = DEFAULT_MAPPING_RULES,
 ): string => {
     const compiledRules = getCompiledRules(rules);
 
@@ -351,4 +351,31 @@ export const removeTagsExceptSpan = (content: string) => {
  */
 export const normalizeHtml = (html: string): string => {
     return html.replace(/<hadeeth-\d+>/gi, '<span class="hadeeth">').replace(/<\s*\/?\s*hadeeth\s*>/gi, '</span>');
+};
+
+/**
+ * Convert Shamela HTML to Markdown format for easier pattern matching.
+ *
+ * Transformations:
+ * - `<span data-type="title">text</span>` → `## text`
+ * - `<a href="inr://...">text</a>` → `text` (strip narrator links)
+ * - All other HTML tags → stripped
+ *
+ * Note: Content typically already has proper line breaks before title spans,
+ * so we don't add extra newlines around the ## header.
+ * Line ending normalization is handled by segmentPages.
+ *
+ * @param html - HTML content from Shamela
+ * @returns Markdown-formatted content
+ */
+export const htmlToMarkdown = (html: string): string => {
+    return (
+        html
+            // Convert title spans to markdown headers (no extra newlines - content already has them)
+            .replace(/<span[^>]*data-type=["']title["'][^>]*>(.*?)<\/span>/gi, '## $1')
+            // Strip narrator links but keep text
+            .replace(/<a[^>]*href=["']inr:\/\/[^"']*["'][^>]*>(.*?)<\/a>/gi, '$1')
+            // Strip all remaining HTML tags
+            .replace(/<[^>]*>/g, '')
+    );
 };

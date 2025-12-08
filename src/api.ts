@@ -18,7 +18,7 @@ import type { UnzippedEntry } from './utils/io';
 import { unzipFromUrl, writeOutput } from './utils/io';
 import logger from './utils/logger';
 import { buildUrl, httpsGet } from './utils/network';
-import { validateEnvVariables, validateMasterSourceTables } from './utils/validation';
+import { validateMasterSourceTables } from './utils/validation';
 
 /**
  * Response payload received when requesting book update metadata from the Shamela API.
@@ -170,8 +170,6 @@ export const getBookMetadata = async (
     id: number,
     options?: GetBookMetadataOptions,
 ): Promise<GetBookMetadataResponsePayload> => {
-    validateEnvVariables();
-
     const booksEndpoint = requireConfigValue('booksEndpoint');
     const url = buildUrl(`${booksEndpoint}/${id}`, {
         major_release: (options?.majorVersion || 0).toString(),
@@ -267,8 +265,6 @@ export const downloadBook = async (id: number, options: DownloadBookOptions): Pr
  * ```
  */
 export const getMasterMetadata = async (version: number = 0): Promise<GetMasterMetadataResponsePayload> => {
-    validateEnvVariables();
-
     const masterEndpoint = requireConfigValue('masterPatchEndpoint');
     const url = buildUrl(masterEndpoint, { version: version.toString() });
 

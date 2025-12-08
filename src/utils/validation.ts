@@ -3,21 +3,20 @@ import { getConfig } from '@/config';
 const SOURCE_TABLES = ['author.sqlite', 'book.sqlite', 'category.sqlite'];
 
 /**
- * Validates that required environment variables are set.
- * @throws {Error} When any required environment variable is missing
+ * Validates that the API key is configured.
+ *
+ * Note: The `booksEndpoint` and `masterPatchEndpoint` are validated lazily
+ * when the corresponding API functions are called. This allows clients to
+ * configure only the endpoint they need (e.g., only `booksEndpoint` if they
+ * only use book APIs).
+ *
+ * @throws {Error} When the API key is not configured
  */
 export const validateEnvVariables = () => {
-    const { apiKey, booksEndpoint, masterPatchEndpoint } = getConfig();
-    const envVariablesNotFound = [
-        ['apiKey', apiKey],
-        ['booksEndpoint', booksEndpoint],
-        ['masterPatchEndpoint', masterPatchEndpoint],
-    ]
-        .filter(([, value]) => !value)
-        .map(([key]) => key);
+    const { apiKey } = getConfig();
 
-    if (envVariablesNotFound.length) {
-        throw new Error(`${envVariablesNotFound.join(', ')} environment variables not set`);
+    if (!apiKey) {
+        throw new Error('apiKey environment variable not set');
     }
 };
 
