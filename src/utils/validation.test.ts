@@ -28,15 +28,22 @@ describe('validation utilities', () => {
         resetConfig();
     });
 
-    it('validateEnvVariables throws when required configuration is missing', () => {
-        expect(() => validateEnvVariables()).toThrow(/environment variables not set/i);
+    it('validateEnvVariables throws when API key is missing', () => {
+        expect(() => validateEnvVariables()).toThrow(/apiKey environment variable not set/i);
     });
 
-    it('validateEnvVariables passes when configuration is provided', () => {
+    it('validateEnvVariables passes when only API key is provided', () => {
         configure({
             apiKey: 'key',
-            booksEndpoint: 'https://example.com/books',
-            masterPatchEndpoint: 'https://example.com/master',
+        });
+
+        expect(() => validateEnvVariables()).not.toThrow();
+    });
+
+    it('validateEnvVariables does not require endpoints to be set', () => {
+        configure({
+            apiKey: 'key',
+            // booksEndpoint and masterPatchEndpoint intentionally omitted
         });
 
         expect(() => validateEnvVariables()).not.toThrow();

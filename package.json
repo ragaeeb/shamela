@@ -21,14 +21,19 @@
         "typescript": "^5.9.3"
     },
     "engines": {
-        "bun": ">=1.3.2",
-        "node": ">=22.0.0"
+        "bun": ">=1.3.4",
+        "node": ">=24.0.0"
     },
     "exports": {
         ".": {
             "default": "./dist/index.js",
             "import": "./dist/index.js",
             "types": "./dist/index.d.ts"
+        },
+        "./constants": {
+            "default": "./dist/constants.js",
+            "import": "./dist/constants.js",
+            "types": "./dist/constants.d.ts"
         },
         "./content": {
             "default": "./dist/content.js",
@@ -47,7 +52,8 @@
         "shamela",
         "Arabic",
         "Islamic",
-        "Muslim"
+        "Muslim",
+        "Islam"
     ],
     "license": "MIT",
     "main": "dist/index.js",
@@ -70,5 +76,5 @@
     "source": "src/index.ts",
     "type": "module",
     "types": "dist/index.d.ts",
-    "version": "1.3.4"
+    "version": "1.3.5"
 }

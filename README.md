@@ -1,3 +1,11 @@
+https://dev.shamela.ws/updates/win/87_64.zip
+https://dev.shamela.ws/versions/win.php
+https://dev.shamela.ws/api/v1/patches/master?api_key=7b9524-8fc30c-e6241o-a0167e-a6d013&version=0
+https://dev.shamela.ws/api/v1/patches/master-download/master-0-1209.zip?api_key=7b9524-8fc30c-e6241o-a0167e-a6d013
+https://dev.shamela.ws/covers/3.jpg?1
+https://dev.shamela.ws/api/v1/patches/book-updates/1681?api_key=7b9524-8fc30c-e6241o-a0167e-a6d013&major_release=0&minor_release=0
+https://ready.shamela.ws/ready/1681-6-1.zip
+
 # shamela
 
 [![wakatime](https://wakatime.com/badge/user/a0b906ce-b8e7-4463-8bce-383238df6d4b/project/faef70ab-efdb-448b-ab83-0fc66c95888e.svg)](https://wakatime.com/badge/user/a0b906ce-b8e7-4463-8bce-383238df6d4b/project/faef70ab-efdb-448b-ab83-0fc66c95888e)
@@ -94,8 +102,9 @@ import { configure, getBook } from 'shamela';
 // Configure API credentials
 configure({
   apiKey: process.env.SHAMELA_API_KEY,
-  booksEndpoint: process.env.SHAMELA_BOOKS_ENDPOINT,
-  masterPatchEndpoint: process.env.SHAMELA_MASTER_ENDPOINT,
+  // Configure only the endpoints you need:
+  booksEndpoint: process.env.SHAMELA_BOOKS_ENDPOINT,     // Required for book APIs
+  masterPatchEndpoint: process.env.SHAMELA_MASTER_ENDPOINT, // Required for master APIs
   // sqlJsWasmUrl is auto-detected in standard Node.js
 });
 
@@ -197,10 +206,29 @@ This is ideal for:
 
 **Available exports from `shamela/content`:**
 - `parseContentRobust` - Parse HTML into structured lines
-- `sanitizePageContent` - Normalize Arabic text
+- `mapPageCharacterContent` - Normalize Arabic text with mapping rules
 - `splitPageBodyFromFooter` - Separate body from footnotes
 - `removeArabicNumericPageMarkers` - Remove page markers
 - `removeTagsExceptSpan` - Strip HTML except spans
+- `htmlToMarkdown` - Convert Shamela HTML to Markdown
+- `normalizeHtml` - Normalize hadeeth tags to standard spans
+
+### Extending Content Processing Rules
+
+You can import `DEFAULT_MAPPING_RULES` from `shamela/constants` to extend or customize the character mapping used by `mapPageCharacterContent`:
+
+```typescript
+import { mapPageCharacterContent } from 'shamela/content';
+import { DEFAULT_MAPPING_RULES } from 'shamela/constants';
+
+// Extend default rules with custom mappings
+const customRules = {
+  ...DEFAULT_MAPPING_RULES,
+  'customPattern': 'replacement',
+};
+
+const processed = mapPageCharacterContent(rawContent, customRules);
+```
 
 ## API Reference
 
@@ -662,6 +690,40 @@ bun run e2e               # End-to-end tests
 bun run format            # Format code
 bun run lint              # Lint code
 ```
+
+## Scripts Folder
+
+The `scripts/` directory contains standalone reverse-engineering tools for extracting and decoding data from Shamela's desktop application databases. These are **development tools**, not part of the published npm package.
+
+### Available Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `shamela-decoder.ts` | Core decoder for Shamela's custom character encoding |
+| `export-narrators.ts` | Exports 18,989 narrator biographies from S1.db |
+| `export-roots.ts` | Exports 3.2M Arabic word→root morphological mappings from S2.db |
+
+### Running Scripts
+
+```bash
+# Export narrators to JSON
+bun run scripts/export-narrators.ts
+
+# Export Arabic roots
+bun run scripts/export-roots.ts
+
+# Run script tests
+bun test scripts/
+```
+
+### Script Documentation
+
+- `scripts/README.md` – Quick start guide and reverse-engineering methodology
+- `scripts/AGENTS.md` – Comprehensive documentation including:
+  - Database schema discoveries
+  - Character encoding algorithm (substitution cipher)
+  - Validation approaches and coverage statistics
+  - Common patterns and debugging techniques
 
 ## License
 
