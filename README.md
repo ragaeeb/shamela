@@ -54,6 +54,11 @@ A universal TypeScript library for accessing and downloading Maktabah Shamela v4
     - [splitPageBodyFromFooter](#splitpagebodyfromfooter)
     - [removeArabicNumericPageMarkers](#removearabicnumericpagemarkers)
     - [removeTagsExceptSpan](#removetagsexceptspan)
+    - [normalizeLineEndings](#normalizelineendings)
+    - [stripHtmlTags](#striphtmltags)
+    - [htmlToMarkdown](#htmltomarkdown)
+    - [normalizeHtml](#normalizehtml)
+    - [normalizeTitleSpans](#normalizetitlespans)
   - [Supporting Utilities](#supporting-utilities)
     - [buildUrl](#buildurl)
     - [httpsGet](#httpsget)
@@ -197,13 +202,16 @@ This is ideal for:
 - Processing pre-downloaded book data
 
 **Available exports from `shamela/content`:**
-- `parseContentRobust` - Parse HTML into structured lines
+- `parseContentRobust` - Parse HTML into structured lines preserving title spans
 - `mapPageCharacterContent` - Normalize Arabic text with mapping rules
 - `splitPageBodyFromFooter` - Separate body from footnotes
 - `removeArabicNumericPageMarkers` - Remove page markers
 - `removeTagsExceptSpan` - Strip HTML except spans
-- `htmlToMarkdown` - Convert Shamela HTML to Markdown
+- `htmlToMarkdown` - Convert Shamela HTML to Markdown (title spans → `##` headers)
 - `normalizeHtml` - Normalize hadeeth tags to standard spans
+- `normalizeLineEndings` - Normalize line endings to Unix-style (`\n`)
+- `stripHtmlTags` - Strip all HTML tags from content
+- `normalizeTitleSpans` - Handle consecutive title spans (merge, split, or hierarchy)
 
 ### Extending Content Processing Rules
 
@@ -458,6 +466,52 @@ Strips anchor and hadeeth tags while preserving nested `<span>` elements.
 ```typescript
 removeTagsExceptSpan(content: string): string
 ```
+
+#### normalizeLineEndings
+
+Normalizes line endings to Unix-style (`\n`). Converts Windows (`\r\n`) and old Mac (`\r`) line endings for consistent pattern matching across platforms.
+
+```typescript
+normalizeLineEndings(content: string): string
+```
+
+#### stripHtmlTags
+
+Strips all HTML tags from content, keeping only the text.
+
+```typescript
+stripHtmlTags(html: string): string
+```
+
+#### htmlToMarkdown
+
+Converts Shamela HTML to Markdown format. Title spans (`<span data-type="title">`) become `##` headers, narrator links are stripped but text is preserved.
+
+```typescript
+htmlToMarkdown(html: string): string
+```
+
+#### normalizeHtml
+
+Normalizes Shamela HTML for CSS styling by converting `<hadeeth-N>` tags to `<span class="hadeeth">` and closing `</hadeeth>` to `</span>`.
+
+```typescript
+normalizeHtml(html: string): string
+```
+
+#### normalizeTitleSpans
+
+Normalizes consecutive Shamela-style title spans. Shamela exports sometimes contain adjacent title spans that would produce multiple headings on one line when converted to Markdown.
+
+```typescript
+normalizeTitleSpans(html: string, options: NormalizeTitleSpanOptions): string
+```
+
+**Options:**
+- `strategy: 'merge'` - Combines adjacent titles into a single span with a separator
+- `strategy: 'splitLines'` - Places each title on its own line
+- `strategy: 'hierarchy'` - Converts subsequent titles to subtitles (`data-type="subtitle"`)
+- `separator` (optional) - Separator used when merging (default: ` — `)
 
 ### Supporting Utilities
 

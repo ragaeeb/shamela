@@ -4,18 +4,22 @@
  */
 export const DEFAULT_MASTER_METADATA_VERSION = 0;
 
+export const FOOTNOTE_MARKER = '_________';
+
 /**
  * Placeholder value used to represent unknown or missing data.
  * @constant {string}
  */
 export const UNKNOWN_VALUE_PLACEHOLDER = '99999';
 
+export const FOREWORD_MARKER = '舄';
+
 /**
  * Default rules to map characters from page content.
  */
 export const DEFAULT_MAPPING_RULES: Record<string, string> = {
     '<img[^>]*>>': '',
-    舄: '',
+    [FOREWORD_MARKER]: '',
     '﵀': 'رَحِمَهُ ٱللَّٰهُ',
     '﵁': 'رضي الله عنه',
     '﵂': 'رَضِيَ ٱللَّٰهُ عَنْهَا',

@@ -1,4 +1,5 @@
-import { DEFAULT_MAPPING_RULES } from './utils/constants';
+import type { NormalizeTitleSpanOptions } from './types';
+import { DEFAULT_MAPPING_RULES, FOOTNOTE_MARKER } from './utils/constants';
 
 export type Line = {
     id?: string;
@@ -205,6 +206,19 @@ const handleSpanStart = (
 };
 
 /**
+ * Normalizes line endings to Unix-style (`\n`).
+ *
+ * Converts Windows (`\r\n`) and old Mac (`\r`) line endings to Unix style
+ * for consistent pattern matching across platforms.
+ *
+ * @param content - Raw content with potentially mixed line endings
+ * @returns Content with all line endings normalized to `\n`
+ */
+export const normalizeLineEndings = (content: string) => {
+    return content.includes('\r') ? content.replace(/\r\n?/g, '\n') : content;
+};
+
+/**
  * Parses Shamela HTML content into structured lines while preserving headings.
  *
  * @param content - The raw HTML markup representing a page
@@ -212,7 +226,7 @@ const handleSpanStart = (
  */
 export const parseContentRobust = (content: string): Line[] => {
     // Normalize line endings first
-    content = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    content = normalizeLineEndings(content);
 
     // Fast path when there are no span tags at all
     if (!/<span[^>]*>/i.test(content)) {
@@ -221,7 +235,7 @@ export const parseContentRobust = (content: string): Line[] => {
 
     const tokens = tokenize(`<root>${content}</root>`);
     const state = {
-        currentId: undefined as string | undefined,
+        currentId: '',
         currentText: '',
         result: [] as Line[],
         spanStack: [] as Array<{ isTitle: boolean; id?: string }>,
@@ -303,7 +317,7 @@ export const mapPageCharacterContent = (
  * @param footnoteMarker - Marker indicating the start of footnotes
  * @returns A tuple containing the page body followed by the footnote section
  */
-export const splitPageBodyFromFooter = (content: string, footnoteMarker = '_________') => {
+export const splitPageBodyFromFooter = (content: string, footnoteMarker = FOOTNOTE_MARKER) => {
     let footnote = '';
     const indexOfFootnote = content.indexOf(footnoteMarker);
 
@@ -354,6 +368,16 @@ export const normalizeHtml = (html: string): string => {
 };
 
 /**
+ * Strip all HTML tags from content, keeping only text.
+ *
+ * @param html - HTML content
+ * @returns Plain text content
+ */
+export const stripHtmlTags = (html: string) => {
+    return html.replace(/<[^>]*>/g, '');
+};
+
+/**
  * Convert Shamela HTML to Markdown format for easier pattern matching.
  *
  * Transformations:
@@ -368,14 +392,66 @@ export const normalizeHtml = (html: string): string => {
  * @param html - HTML content from Shamela
  * @returns Markdown-formatted content
  */
-export const htmlToMarkdown = (html: string): string => {
-    return (
-        html
-            // Convert title spans to markdown headers (no extra newlines - content already has them)
-            .replace(/<span[^>]*data-type=["']title["'][^>]*>(.*?)<\/span>/gi, '## $1')
-            // Strip narrator links but keep text
-            .replace(/<a[^>]*href=["']inr:\/\/[^"']*["'][^>]*>(.*?)<\/a>/gi, '$1')
-            // Strip all remaining HTML tags
-            .replace(/<[^>]*>/g, '')
-    );
+export const htmlToMarkdown = (html: string) => {
+    const converted = html
+        // Convert title spans to markdown headers (no extra newlines - content already has them)
+        .replace(/<span[^>]*data-type=["']title["'][^>]*>(.*?)<\/span>/gi, '## $1')
+        // Strip narrator links but keep text
+        .replace(/<a[^>]*href=["']inr:\/\/[^"']*["'][^>]*>(.*?)<\/a>/gi, '$1');
+
+    return stripHtmlTags(converted);
+};
+
+/**
+ * Normalizes consecutive Shamela-style title spans.
+ *
+ * Shamela exports sometimes contain adjacent title spans like:
+ * `<span data-type="title">باب الميم</span><span data-type="title">من اسمه محمد</span>`
+ *
+ * If you naively convert each title span into a markdown heading, you can end up with:
+ * `## باب الميم ## من اسمه محمد` (two headings on one line).
+ *
+ * This helper rewrites the HTML so downstream HTML→Markdown conversion can stay simple and consistent.
+ */
+export const normalizeTitleSpans = (html: string, options: NormalizeTitleSpanOptions): string => {
+    const { separator = ' — ', strategy } = options;
+    if (!html) {
+        return html;
+    }
+
+    const titleSpanRegex = /<span\b[^>]*\bdata-type=(["'])title\1[^>]*>[\s\S]*?<\/span>/gi;
+    // Two or more title spans with optional whitespace between them
+    const titleRunRegex = /(?:<span\b[^>]*\bdata-type=(["'])title\1[^>]*>[\s\S]*?<\/span>\s*){2,}/gi;
+
+    return html.replace(titleRunRegex, (run) => {
+        const spans = run.match(titleSpanRegex) ?? [];
+        if (spans.length < 2) {
+            return run;
+        }
+
+        if (strategy === 'splitLines') {
+            return spans.join('\n');
+        }
+
+        if (strategy === 'merge') {
+            const texts = spans
+                .map((s) =>
+                    s
+                        .replace(/^<span\b[^>]*>/i, '')
+                        .replace(/<\/span>$/i, '')
+                        .trim(),
+                )
+                .filter(Boolean);
+
+            // Preserve the first span's opening tag (attributes) but replace its inner text.
+            const firstOpenTagMatch = spans[0]!.match(/^<span\b[^>]*>/i);
+            const openTag = firstOpenTagMatch?.[0] ?? '<span data-type="title">';
+            return `${openTag}${texts.join(separator)}</span>`;
+        }
+
+        // hierarchy
+        const first = spans[0];
+        const rest = spans.slice(1).map((s) => s.replace(/\bdata-type=(["'])title\1/i, 'data-type="subtitle"'));
+        return [first, ...rest].join('\n');
+    });
 };

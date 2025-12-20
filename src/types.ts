@@ -148,3 +148,18 @@ export type ShamelaConfig = {
  * Valid configuration keys.
  */
 export type ShamelaConfigKey = keyof ShamelaConfig;
+
+export type TitleSpanStrategy = 'splitLines' | 'merge' | 'hierarchy';
+
+export type NormalizeTitleSpanOptions = {
+    /**
+     * How to handle adjacent `<span data-type="title">...</span>` runs.
+     *
+     * - `splitLines`: Keep each title span, but insert `\\n` between them so downstream conversion produces one header per line.
+     * - `merge`: Merge adjacent title spans into a single title span, joining text with `separator`.
+     * - `hierarchy`: Keep first title span as-is, convert subsequent adjacent title spans to `data-type="subtitle"` and insert `\\n` between them.
+     */
+    strategy: TitleSpanStrategy;
+    /** Used only for `merge` strategy. Default: `' — '`. */
+    separator?: string;
+};

@@ -116,8 +116,8 @@ class SqlJsDatabaseWrapper implements SqliteDatabase {
     };
 
     private get = (sql: string, params: any[]): QueryRow | undefined => {
-        const rows = this.all(sql, params);
-        return rows[0];
+        const [row] = this.all(sql, params);
+        return row;
     };
 }
 

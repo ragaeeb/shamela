@@ -112,6 +112,27 @@ shamela/
 | `src/db/sqlite.ts` | sql.js database initialization and WASM loading |
 | `src/utils/constants.ts` | Exportable constants including `DEFAULT_MAPPING_RULES` |
 
+### Span Handling Utilities
+
+Shamela HTML content uses `<span>` tags with special attributes to mark titles, subtitles, and other semantic elements. The `src/content.ts` module exports utilities for parsing and normalizing these spans:
+
+| Function | Purpose |
+|----------|---------|
+| `parseContentRobust` | Parses HTML into `Line[]` objects, extracting title IDs from `<span data-type="title" id="toc-X">` |
+| `normalizeHtml` | Converts `<hadeeth-N>` to `<span class="hadeeth">` for CSS styling |
+| `htmlToMarkdown` | Converts `<span data-type="title">` to `## ` Markdown headers |
+| `normalizeTitleSpans` | Handles consecutive title spans (merge, splitLines, or hierarchy strategies) |
+| `removeTagsExceptSpan` | Strips `<a>` and `<hadeeth>` tags while preserving `<span>` elements |
+| `stripHtmlTags` | Removes all HTML tags, keeping only text content |
+| `normalizeLineEndings` | Normalizes `\r\n` and `\r` to `\n` for consistent processing |
+
+#### Span Patterns in Shamela Content
+
+- **Title spans**: `<span data-type="title" id="toc-123">Chapter Title</span>`
+- **Consecutive titles**: Multiple adjacent title spans (handled by `normalizeTitleSpans`)
+- **Hadeeth tags**: `<hadeeth-N>` opening tags with `</hadeeth>` closing tags
+- **Narrator links**: `<a href="inr://...">narrator name</a>` (stripped by `htmlToMarkdown`)
+
 ## Package Exports
 
 The library uses conditional exports for browser/Node.js compatibility:
