@@ -18,6 +18,7 @@ jobs:
                   fetch-depth: 0
                   fetch-tags: true
                   persist-credentials: true
+                  token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Set up Node.js
               uses: actions/setup-node@v6
@@ -35,14 +36,19 @@ jobs:
             - name: Build project
               run: bun run build
 
-            - name: Fetch all tags
+            - name: Fetch all tags and refs
               run: |
-                  git fetch --tags origin
-                  git tag -l | tail -5
-                  echo "Latest tag: $(git describe --tags --abbrev=0 2>/dev/null || echo 'none')"
+                  git fetch --prune --tags --force origin
+                  git fetch origin +refs/tags/*:refs/tags/*
+                  echo "=== Available tags ==="
+                  git tag -l | tail -10
+                  echo "=== Latest tag on current branch ==="
+                  git describe --tags --abbrev=0 2>/dev/null || echo 'No tags found on this branch'
+                  echo "=== Tags reachable from HEAD ==="
+                  git tag --merged HEAD | tail -5 || echo 'No merged tags'
 
             - name: Publish
-              run: bun x semantic-release
+              run: bun x semantic-release --debug
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   NPM_TOKEN: ${{ secrets.PUBLISH_NPM_TOKEN }}
