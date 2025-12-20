@@ -47,8 +47,79 @@ jobs:
                   echo "=== Tags reachable from HEAD ==="
                   git tag --merged HEAD | tail -5 || echo 'No merged tags'
 
-            - name: Publish
-              run: bun x semantic-release --debug
+            - name: Bootstrap semantic-release if needed
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  # Check if any tags are reachable from HEAD
+                  MERGED_TAGS=$(git tag --merged HEAD 2>/dev/null | wc -l | tr -d ' ')
+                  echo "Tags merged into HEAD: $MERGED_TAGS"
+                  
+                  if [ "$MERGED_TAGS" -eq "0" ]; then
+                    echo "No semantic-release compatible tags found. Bootstrapping from GitHub releases..."
+                    
+                    # Get latest release version from GitHub
+                    LATEST_RELEASE=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
+                    
+                    if [ -n "$LATEST_RELEASE" ]; then
+                      echo "Latest GitHub release: $LATEST_RELEASE"
+                      
+                      # Extract version number (remove 'v' prefix)
+                      VERSION_NUM="${LATEST_RELEASE#v}"
+                      
+                      # Parse major.minor.patch
+                      MAJOR=$(echo "$VERSION_NUM" | cut -d. -f1)
+                      MINOR=$(echo "$VERSION_NUM" | cut -d. -f2)
+                      
+                      # Increment minor version for the new release
+                      NEW_MINOR=$((MINOR + 1))
+                      NEW_VERSION="v${MAJOR}.${NEW_MINOR}.0"
+                      NEW_VERSION_NUM="${MAJOR}.${NEW_MINOR}.0"
+                      
+                      echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+                      echo "NEW_VERSION_NUM=$NEW_VERSION_NUM" >> $GITHUB_ENV
+                      echo "BOOTSTRAP_RELEASE=true" >> $GITHUB_ENV
+                      
+                      echo "Will create bootstrap release: $NEW_VERSION"
+                    else
+                      echo "No GitHub releases found. Letting semantic-release handle fresh repository."
+                    fi
+                  else
+                    echo "Found $MERGED_TAGS reachable tag(s). Semantic-release should work normally."
+                  fi
+
+            - name: Bootstrap - Update package.json version
+              if: env.BOOTSTRAP_RELEASE == 'true'
+              run: |
+                  echo "Updating package.json to version $NEW_VERSION_NUM"
+                  npm version $NEW_VERSION_NUM --no-git-tag-version --allow-same-version
+
+            - name: Bootstrap - Publish to npm
+              if: env.BOOTSTRAP_RELEASE == 'true'
+              run: |
+                  echo "//registry.npmjs.org/:_authToken=${{ secrets.PUBLISH_NPM_TOKEN }}" > ~/.npmrc
+                  npm publish --access public
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.PUBLISH_NPM_TOKEN }}
+
+            - name: Bootstrap - Create GitHub Release
+              if: env.BOOTSTRAP_RELEASE == 'true'
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  echo "Creating GitHub release $NEW_VERSION"
+                  gh release create "$NEW_VERSION" \
+                    --title "$NEW_VERSION" \
+                    --notes "Bootstrap release to sync semantic-release with existing repository history.
+
+                  This release was created automatically to establish a baseline for future automated releases.
+                  
+                  See previous releases for detailed changelogs." \
+                    --target main
+
+            - name: Publish (semantic-release)
+              if: env.BOOTSTRAP_RELEASE != 'true'
+              run: bun x semantic-release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   NPM_TOKEN: ${{ secrets.PUBLISH_NPM_TOKEN }}
