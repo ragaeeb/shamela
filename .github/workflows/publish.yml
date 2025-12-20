@@ -34,6 +34,9 @@ jobs:
             - name: Build project
               run: bun run build
 
+            - name: Fetch all tags
+              run: git fetch --tags --force
+
             - name: Publish
               run: bun x semantic-release
               env:
