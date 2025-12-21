@@ -59,6 +59,8 @@ A universal TypeScript library for accessing and downloading Maktabah Shamela v4
     - [htmlToMarkdown](#htmltomarkdown)
     - [normalizeHtml](#normalizehtml)
     - [normalizeTitleSpans](#normalizetitlespans)
+    - [moveContentAfterLineBreakIntoSpan](#movecontentafterlinebreakintospans)
+    - [convertContentToMarkdown](#convertcontenttomarkdown)
   - [Supporting Utilities](#supporting-utilities)
     - [buildUrl](#buildurl)
     - [httpsGet](#httpsget)
@@ -212,6 +214,8 @@ This is ideal for:
 - `normalizeLineEndings` - Normalize line endings to Unix-style (`\n`)
 - `stripHtmlTags` - Strip all HTML tags from content
 - `normalizeTitleSpans` - Handle consecutive title spans (merge, split, or hierarchy)
+- `moveContentAfterLineBreakIntoSpan` - Move pre-title text into the span
+- `convertContentToMarkdown` - Full pipeline: normalize spans → move pre-title text → convert to Markdown
 
 ### Extending Content Processing Rules
 
@@ -503,6 +507,27 @@ normalizeHtml(html: string): string
 
 Normalizes consecutive Shamela-style title spans. Shamela exports sometimes contain adjacent title spans that would produce multiple headings on one line when converted to Markdown.
 
+Some Shamela HTML exports contain adjacent title spans like:
+
+`<span data-type="title">باب الميم</span><span data-type="title">من اسمه محمد</span>`
+
+If you convert each title span to a markdown header, you can end up with `## باب الميم ## من اسمه محمد`.
+
+Use `normalizeTitleSpans(html, { strategy })` (exported from the library) before converting title spans to markdown:
+
+```typescript
+import { normalizeTitleSpans } from 'flappa-doormal';
+
+const html = '<span data-type="title">باب الميم</span><span data-type="title">من اسمه محمد</span>';
+const normalized = normalizeTitleSpans(html, { strategy: 'splitLines' });
+// => "<span data-type=\"title\">باب الميم</span>\n<span data-type=\"title\">من اسمه محمد</span>"
+```
+
+Strategies:
+- `splitLines`: each title span becomes its own line (recommended default)
+- `merge`: merge adjacent titles into one (join with a separator)
+- `hierarchy`: keep first as title, convert subsequent to `data-type="subtitle"` (you decide how to map subtitles in your converter)
+
 ```typescript
 normalizeTitleSpans(html: string, options: NormalizeTitleSpanOptions): string
 ```
@@ -512,6 +537,36 @@ normalizeTitleSpans(html: string, options: NormalizeTitleSpanOptions): string
 - `strategy: 'splitLines'` - Places each title on its own line
 - `strategy: 'hierarchy'` - Converts subsequent titles to subtitles (`data-type="subtitle"`)
 - `separator` (optional) - Separator used when merging (default: ` — `)
+
+#### moveContentAfterLineBreakIntoSpan
+
+Moves text that appears after a line break but before a title span into the span. Useful when chapter numbers or prefixes are placed outside the title span in the source HTML.
+
+```typescript
+moveContentAfterLineBreakIntoSpan(html: string): string
+```
+
+```typescript
+// Input:  "\r١ - <span data-type="title">الباب الأول</span>"
+// Output: "\r<span data-type="title">١ - الباب الأول</span>"
+```
+
+#### convertContentToMarkdown
+
+Converts Shamela HTML to Markdown using the recommended transformation pipeline:
+1. Normalizes consecutive title spans
+2. Moves pre-title text into spans  
+3. Converts to Markdown format
+
+```typescript
+convertContentToMarkdown(content: string, options?: NormalizeTitleSpanOptions): string
+```
+
+```typescript
+const html = '<span data-type="title">كتاب</span><span data-type="title">الإيمان</span>';
+const md = convertContentToMarkdown(html);
+// => "## كتاب\n## الإيمان"
+```
 
 ### Supporting Utilities
 

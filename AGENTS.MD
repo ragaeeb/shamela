@@ -122,6 +122,8 @@ Shamela HTML content uses `<span>` tags with special attributes to mark titles, 
 | `normalizeHtml` | Converts `<hadeeth-N>` to `<span class="hadeeth">` for CSS styling |
 | `htmlToMarkdown` | Converts `<span data-type="title">` to `## ` Markdown headers |
 | `normalizeTitleSpans` | Handles consecutive title spans (merge, splitLines, or hierarchy strategies) |
+| `moveContentAfterLineBreakIntoSpan` | Moves pre-title text (e.g., chapter numbers) into the span |
+| `convertContentToMarkdown` | Full pipeline: normalize spans → move pre-title text → convert to Markdown |
 | `removeTagsExceptSpan` | Strips `<a>` and `<hadeeth>` tags while preserving `<span>` elements |
 | `stripHtmlTags` | Removes all HTML tags, keeping only text content |
 | `normalizeLineEndings` | Normalizes `\r\n` and `\r` to `\n` for consistent processing |

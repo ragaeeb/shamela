@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'bun:test';
 
 import {
+    convertContentToMarkdown,
     htmlToMarkdown,
     mapPageCharacterContent,
+    moveContentAfterLineBreakIntoSpan,
     normalizeHtml,
     normalizeLineEndings,
     normalizeTitleSpans,
@@ -758,6 +760,120 @@ describe('content', () => {
             expect((out.match(/data-type="title"/g) ?? []).length).toBe(1);
             expect((out.match(/data-type="subtitle"/g) ?? []).length).toBe(1);
             expect(out).toContain('\n');
+        });
+    });
+
+    describe('moveContentAfterLineBreakIntoSpan', () => {
+        it('should move content after carriage return into the title span', () => {
+            const input = '\r١ - <span data-type="title">الباب الأول</span>';
+            const result = moveContentAfterLineBreakIntoSpan(input);
+            expect(result).toBe('\r<span data-type="title">١ - الباب الأول</span>');
+        });
+
+        it('should move content at the start of the string into the title span', () => {
+            const input = 'مقدمة <span data-type="title">العنوان</span>';
+            const result = moveContentAfterLineBreakIntoSpan(input);
+            expect(result).toBe('<span data-type="title">مقدمة العنوان</span>');
+        });
+
+        it('should handle multiple title spans on different lines', () => {
+            const input =
+                '\rأولاً <span data-type="title">الفصل الأول</span>\rثانياً <span data-type="title">الفصل الثاني</span>';
+            const result = moveContentAfterLineBreakIntoSpan(input);
+            expect(result).toContain('<span data-type="title">أولاً الفصل الأول</span>');
+            expect(result).toContain('<span data-type="title">ثانياً الفصل الثاني</span>');
+        });
+
+        it('should handle title spans with single quotes', () => {
+            const input = "\r١ - <span data-type='title'>الباب</span>";
+            const result = moveContentAfterLineBreakIntoSpan(input);
+            expect(result).toBe('\r<span data-type="title">١ - الباب</span>');
+        });
+
+        it('should handle title spans with additional attributes', () => {
+            const input = '\r١ - <span id="toc-1" data-type="title" class="heading">الباب</span>';
+            const result = moveContentAfterLineBreakIntoSpan(input);
+            expect(result).toBe('\r<span data-type="title">١ - الباب</span>');
+        });
+
+        it('should not modify content without title spans', () => {
+            const input = '\rSome regular content without spans';
+            const result = moveContentAfterLineBreakIntoSpan(input);
+            expect(result).toBe(input);
+        });
+
+        it('should handle empty string', () => {
+            expect(moveContentAfterLineBreakIntoSpan('')).toBe('');
+        });
+
+        it('should handle title span with no preceding content', () => {
+            const input = '\r<span data-type="title">العنوان</span>';
+            const result = moveContentAfterLineBreakIntoSpan(input);
+            expect(result).toBe('\r<span data-type="title">العنوان</span>');
+        });
+
+        it('should handle case-insensitive matching', () => {
+            const input = '\r١ - <SPAN DATA-TYPE="title">الباب</SPAN>';
+            const result = moveContentAfterLineBreakIntoSpan(input);
+            expect(result).toBe('\r<span data-type="title">١ - الباب</SPAN>');
+        });
+    });
+
+    describe('convertContentToMarkdown', () => {
+        it('should convert simple title span to markdown header', () => {
+            const input = '<span data-type="title">Chapter One</span>';
+            expect(convertContentToMarkdown(input)).toBe('## Chapter One');
+        });
+
+        it('should split adjacent title spans onto separate lines', () => {
+            const input = '<span data-type="title">First</span><span data-type="title">Second</span>';
+            const result = convertContentToMarkdown(input);
+            expect(result).toBe('## First\n## Second');
+        });
+
+        it('should move pre-title content into the span before converting', () => {
+            const input = '\r١ - <span data-type="title">الباب الأول</span>';
+            const result = convertContentToMarkdown(input);
+            expect(result).toBe('\r## ١ - الباب الأول');
+        });
+
+        it('should handle complex content with multiple transformations', () => {
+            const input =
+                '<span data-type="title">كتاب الإيمان</span><span data-type="title">باب معرفة الإيمان</span>\rحَدَّثَنَا <a href="inr://man-123">أبو بكر</a>';
+            const result = convertContentToMarkdown(input);
+            expect(result).toContain('## كتاب الإيمان');
+            expect(result).toContain('## باب معرفة الإيمان');
+            expect(result).toContain('أبو بكر');
+            expect(result).not.toContain('<a');
+        });
+
+        it('should preserve line breaks in content', () => {
+            const input = '<span data-type="title">Title</span>\r\nContent line 1\r\nContent line 2';
+            const result = convertContentToMarkdown(input);
+            expect(result).toBe('## Title\r\nContent line 1\r\nContent line 2');
+        });
+
+        it('should handle empty string', () => {
+            expect(convertContentToMarkdown('')).toBe('');
+        });
+
+        it('should strip other HTML tags', () => {
+            const input = '<span data-type="title">Title</span><p>Paragraph</p>';
+            const result = convertContentToMarkdown(input);
+            expect(result).toBe('## TitleParagraph');
+        });
+
+        it('should allow custom options for title span normalization', () => {
+            const input = '<span data-type="title">First</span><span data-type="title">Second</span>';
+            const result = convertContentToMarkdown(input, { separator: ' - ', strategy: 'merge' });
+            expect(result).toBe('## First - Second');
+        });
+
+        it('should handle real-world Shamela content', () => {
+            const input = `<span data-type='title' id=toc-10>كِتَابُ الْإِيمَانِ.</span>\r١ - <span data-type='title' id=toc-11>[باب مَعْرِفَةِ الإِيمَانِ]</span>`;
+            const result = convertContentToMarkdown(input);
+            expect(result).toContain('## كِتَابُ الْإِيمَانِ.');
+            expect(result).toContain('## ١ - [باب مَعْرِفَةِ الإِيمَانِ]');
         });
     });
 });

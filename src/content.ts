@@ -378,6 +378,29 @@ export const stripHtmlTags = (html: string) => {
 };
 
 /**
+ * Moves content that appears after a line break but before a title span into the span.
+ *
+ * This handles cases where text at the start of a line (such as chapter numbers like "١ -")
+ * should logically be part of the following title but was placed outside the span in the HTML.
+ *
+ * @example
+ * ```typescript
+ * // Input:  "\rباب الأول<span data-type="title">العنوان</span>"
+ * // Output: "\r<span data-type="title">باب الأول العنوان</span>"
+ * ```
+ *
+ * @param html - HTML content with potential pre-title text
+ * @returns HTML with pre-title text moved inside title spans
+ */
+export const moveContentAfterLineBreakIntoSpan = (html: string) => {
+    return (
+        html
+            // Move content after line break (or at start) but before title span INTO the span
+            .replace(/(^|\r)([^\r]*?)<span[^>]*data-type=["']title["'][^>]*>/gi, '$1<span data-type="title">$2')
+    );
+};
+
+/**
  * Convert Shamela HTML to Markdown format for easier pattern matching.
  *
  * Transformations:
@@ -454,4 +477,31 @@ export const normalizeTitleSpans = (html: string, options: NormalizeTitleSpanOpt
         const rest = spans.slice(1).map((s) => s.replace(/\bdata-type=(["'])title\1/i, 'data-type="subtitle"'));
         return [first, ...rest].join('\n');
     });
+};
+
+/**
+ * Converts Shamela HTML content to Markdown format using a standardized pipeline.
+ *
+ * This is a convenience function that applies the recommended sequence of transformations:
+ * 1. Normalizes consecutive title spans (default: splitLines strategy)
+ * 2. Moves pre-title text into spans
+ * 3. Converts to Markdown format
+ *
+ * @example
+ * ```typescript
+ * const html = '<span data-type="title">Chapter</span><span data-type="title">One</span>';
+ * const markdown = convertContentToMarkdown(html);
+ * // => "## Chapter\n## One"
+ * ```
+ *
+ * @param content - Raw HTML content from Shamela
+ * @param options - Optional configuration for title span normalization
+ * @returns Markdown-formatted content
+ */
+export const convertContentToMarkdown = (content: string, options?: NormalizeTitleSpanOptions) => {
+    content = normalizeTitleSpans(content, { strategy: 'splitLines', ...options });
+    content = moveContentAfterLineBreakIntoSpan(content);
+    content = htmlToMarkdown(content);
+
+    return content;
 };
