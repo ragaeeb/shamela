@@ -834,7 +834,7 @@ describe('content', () => {
         it('should move pre-title content into the span before converting', () => {
             const input = '\r١ - <span data-type="title">الباب الأول</span>';
             const result = convertContentToMarkdown(input);
-            expect(result).toBe('\r## ١ - الباب الأول');
+            expect(result).toBe('\n## ١ - الباب الأول');
         });
 
         it('should handle complex content with multiple transformations', () => {
@@ -850,7 +850,7 @@ describe('content', () => {
         it('should preserve line breaks in content', () => {
             const input = '<span data-type="title">Title</span>\r\nContent line 1\r\nContent line 2';
             const result = convertContentToMarkdown(input);
-            expect(result).toBe('## Title\r\nContent line 1\r\nContent line 2');
+            expect(result).toBe('## Title\nContent line 1\nContent line 2');
         });
 
         it('should handle empty string', () => {
@@ -874,6 +874,167 @@ describe('content', () => {
             const result = convertContentToMarkdown(input);
             expect(result).toContain('## كِتَابُ الْإِيمَانِ.');
             expect(result).toContain('## ١ - [باب مَعْرِفَةِ الإِيمَانِ]');
+        });
+
+        it('should handle subsequent spans', () => {
+            const input =
+                '<span data-type="title" id=toc-931>باب الجيم</span>\r<span data-type="title" id=toc-932>من اسمه جأَبَان وجابر</span>\r٨٦٤ - س.\rعَن: عَبْد اللَّهِ\rوعَنه: سالم بْن أَبي الجعد';
+            const result = convertContentToMarkdown(input);
+
+            expect(result).toBe(
+                ['## باب الجيم', '## من اسمه جأَبَان وجابر', '٨٦٤ - س.', 'عَن: عَبْد اللَّهِ', 'وعَنه: سالم بْن أَبي الجعد'].join(
+                    '\n',
+                ),
+            );
+        });
+
+        it('should preserve double carriage returns as blank lines', () => {
+            const input =
+                "<span data-type='title' id=toc-47>[فَضْلُ عَبْدِ اللهِ بْنِ مَسْعُودٍ ﵁ </span>-] (¬١)\r١٣٧ - حَدَّثَنَا\r\r<span data-type='title' id=toc-48>فَضَائِلُ الْعَبَّاسِ</span>";
+            const result = convertContentToMarkdown(input);
+
+            expect(result).toBe(
+                ['## [فَضْلُ عَبْدِ اللهِ بْنِ مَسْعُودٍ ﵁ -] (¬١)', '١٣٧ - حَدَّثَنَا', '', '## فَضَائِلُ الْعَبَّاسِ'].join('\n'),
+            );
+        });
+
+        it('should handle Windows line endings (\\r\\n)', () => {
+            const input = '<span data-type="title">Title</span>\r\nLine 1\r\nLine 2';
+            const result = convertContentToMarkdown(input);
+
+            expect(result).toBe('## Title\nLine 1\nLine 2');
+        });
+
+        it('should handle unusual \\n\\r sequence', () => {
+            const input = '<span data-type="title">Title</span>\n\rLine 1\n\rLine 2';
+            const result = convertContentToMarkdown(input);
+
+            expect(result).toBe('## Title\n\nLine 1\n\nLine 2');
+        });
+
+        it('should handle mixed line endings', () => {
+            const input = '<span data-type="title">Title</span>\rLine 1\r\nLine 2\nLine 3';
+            const result = convertContentToMarkdown(input);
+
+            expect(result).toBe('## Title\nLine 1\nLine 2\nLine 3');
+        });
+
+        it('should handle multiple non-consecutive spans with various line endings', () => {
+            const input =
+                "<span data-type='title'>First</span>-]\r١٣٧ content\r\r<span data-type='title'>Second</span>-]\r\n١٤٠ more\n\n<span data-type='title'>Third</span>";
+            const result = convertContentToMarkdown(input);
+
+            expect(result).toBe(
+                ['## First-]', '١٣٧ content', '', '## Second-]', '١٤٠ more', '', '## Third'].join('\n'),
+            );
+        });
+
+        it('should handle consecutive spans with \\r\\n between them', () => {
+            const input = '<span data-type="title">First</span>\r\n<span data-type="title">Second</span>\r\nContent';
+            const result = convertContentToMarkdown(input);
+
+            expect(result).toBe('## First\n## Second\nContent');
+        });
+
+        it('should handle triple line breaks', () => {
+            const input = '<span data-type="title">Title</span>\r\r\rContent';
+            const result = convertContentToMarkdown(input);
+
+            expect(result).toBe('## Title\n\n\nContent');
+        });
+
+        it('should handle nested title spans', () => {
+            const input =
+                '<span data-type="title" id=toc-66><span data-type="title" id=toc-67>ذكر من اسمه فضيل</span></span>\r٥٤٢٦- فضيل';
+            const result = convertContentToMarkdown(input);
+
+            expect(result).toContain('## ذكر من اسمه فضيل');
+            expect(result).toContain('٥٤٢٦- فضيل');
+        });
+
+        it('should merge trailing punctuation after title span', () => {
+            const input = `<span data-type='title' id=toc-5004>سَلْمَى بِنْتُ عُمَيْسِ </span>"`;
+            const result = convertContentToMarkdown(input);
+
+            expect(result).toBe('## سَلْمَى بِنْتُ عُمَيْسِ "');
+        });
+
+        it('should keep trailing period with title', () => {
+            const input = '<span data-type="title" id=toc-5>٤ - أبان بن حاتم الأملوكي</span>.\rروى عن عمر';
+            const result = convertContentToMarkdown(input);
+
+            expect(result).toBe('## ٤ - أبان بن حاتم الأملوكي.\nروى عن عمر');
+        });
+
+        it('should keep trailing dash with title', () => {
+            const input =
+                "<span data-type='title' id=toc-285>٢٥ - [بَابُ] الصَّلَاةِ عَلَى النَّبِيِّ ﷺ </span>-\r٩٠٣ - (صحيح) حَدَّثَنَاةُ";
+            const result = convertContentToMarkdown(input);
+
+            expect(result).toBe('## ٢٥ - [بَابُ] الصَّلَاةِ عَلَى النَّبِيِّ ﷺ -\n٩٠٣ - (صحيح) حَدَّثَنَاةُ');
+        });
+
+        it('should strip narrator links and keep text', () => {
+            const input =
+                '<span data-type="title">باب</span>\rحَدَّثَنَا <a href="inr://man-3889">أَبُو بَكْرِ</a> و<a href="inr://man-6792">وَكِيعٌ</a>';
+            const result = convertContentToMarkdown(input);
+
+            expect(result).toBe('## باب\nحَدَّثَنَا أَبُو بَكْرِ ووَكِيعٌ');
+        });
+
+        it('should strip hadeeth tags in content', () => {
+            const input = '<span data-type="title">باب الحديث</span>\r<hadeeth-123>حديث شريف<hadeeth>';
+            const result = convertContentToMarkdown(input);
+
+            expect(result).toBe('## باب الحديث\nحديث شريف');
+        });
+
+        it('should handle spans with content before/after being closed by another span', () => {
+            const input = `<span data-type="title" id=toc-179>فِي تَفْسِيرِ قَوْلِهِ: {وَلَدَيْنَا مَزِيدٌ} [</span>ق: ٣٥]`;
+            const result = convertContentToMarkdown(input);
+
+            expect(result).toBe('## فِي تَفْسِيرِ قَوْلِهِ: {وَلَدَيْنَا مَزِيدٌ} [ق: ٣٥]');
+        });
+
+        it('should handle complex real-world content with multiple features', () => {
+            const input = `<span data-type='title' id=toc-10>كِتَابُ الْإِيمَانِ.</span>
+١ - <span data-type='title' id=toc-11>[باب مَعْرِفَةِ الإِيمَانِ]</span> (¬١).
+حَدَّثَنَا <a href="inr://man-3889">أَبُو بَكْرِ بْنُ أَبِي شَيْبَةَ</a>`;
+            const result = convertContentToMarkdown(input);
+
+            expect(result).toContain('## كِتَابُ الْإِيمَانِ.');
+            expect(result).toContain('## ١ - [باب مَعْرِفَةِ الإِيمَانِ] (¬١).');
+            expect(result).toContain('أَبُو بَكْرِ بْنُ أَبِي شَيْبَةَ');
+            expect(result).not.toContain('<a');
+            expect(result).not.toContain('</a>');
+        });
+
+        it('should handle uppercase HTML tags', () => {
+            const input = '<SPAN data-type="title">UPPERCASE TAGS</SPAN>\rContent';
+            const result = convertContentToMarkdown(input);
+
+            expect(result).toBe('## UPPERCASE TAGS\nContent');
+        });
+
+        it('should handle self-closing tags in content', () => {
+            const input = '<span data-type="title">Title</span>\rText<br/>More<hr/>End';
+            const result = convertContentToMarkdown(input);
+
+            expect(result).toBe('## Title\nTextMoreEnd');
+        });
+
+        it('should handle empty span with id only', () => {
+            const input = 'Content<span id="link-123"></span>More';
+            const result = convertContentToMarkdown(input);
+
+            expect(result).toBe('ContentMore');
+        });
+
+        it('should handle content with Quranic brackets', () => {
+            const input = '<span data-type="title">باب</span>\r﴿فَمَنْ يَعْمَلْ مِثْقَالَ ذَرَّةٍ خَيْرًا يَرَهُ﴾';
+            const result = convertContentToMarkdown(input);
+
+            expect(result).toBe('## باب\n﴿فَمَنْ يَعْمَلْ مِثْقَالَ ذَرَّةٍ خَيْرًا يَرَهُ﴾');
         });
     });
 });

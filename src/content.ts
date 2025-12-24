@@ -396,7 +396,8 @@ export const moveContentAfterLineBreakIntoSpan = (html: string) => {
     return (
         html
             // Move content after line break (or at start) but before title span INTO the span
-            .replace(/(^|\r)([^\r]*?)<span[^>]*data-type=["']title["'][^>]*>/gi, '$1<span data-type="title">$2')
+            // Exclude both \r and \n to avoid capturing content across multiple lines
+            .replace(/(^|[\r\n])([^\r\n]*?)<span[^>]*data-type=["']title["'][^>]*>/gi, '$1<span data-type="title">$2')
     );
 };
 
@@ -442,9 +443,9 @@ export const normalizeTitleSpans = (html: string, options: NormalizeTitleSpanOpt
         return html;
     }
 
-    const titleSpanRegex = /<span\b[^>]*\bdata-type=(["'])title\1[^>]*>[\s\S]*?<\/span>/gi;
-    // Two or more title spans with optional whitespace between them
-    const titleRunRegex = /(?:<span\b[^>]*\bdata-type=(["'])title\1[^>]*>[\s\S]*?<\/span>\s*){2,}/gi;
+    const titleSpanRegex = /<span\b[^>]*\bdata-type=(['"])title\1[^>]*>[\s\S]*?<\/span>/gi;
+    // Two or more title spans with optional whitespace between them, capturing trailing whitespace
+    const titleRunRegex = /((?:<span\b[^>]*\bdata-type=(['"])title\2[^>]*>[\s\S]*?<\/span>\s*){2,})/gi;
 
     return html.replace(titleRunRegex, (run) => {
         const spans = run.match(titleSpanRegex) ?? [];
@@ -452,8 +453,13 @@ export const normalizeTitleSpans = (html: string, options: NormalizeTitleSpanOpt
             return run;
         }
 
+        // Capture trailing whitespace after the last span to preserve line breaks
+        const lastSpan = spans[spans.length - 1];
+        const lastSpanEndIndex = run.lastIndexOf(lastSpan) + lastSpan.length;
+        const trailingWhitespace = run.slice(lastSpanEndIndex);
+
         if (strategy === 'splitLines') {
-            return spans.join('\n');
+            return spans.join('\n') + trailingWhitespace;
         }
 
         if (strategy === 'merge') {
@@ -502,6 +508,7 @@ export const convertContentToMarkdown = (content: string, options?: NormalizeTit
     content = normalizeTitleSpans(content, { strategy: 'splitLines', ...options });
     content = moveContentAfterLineBreakIntoSpan(content);
     content = htmlToMarkdown(content);
+    content = normalizeLineEndings(content);
 
     return content;
 };

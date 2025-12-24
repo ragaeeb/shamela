@@ -15,6 +15,17 @@
 
 A universal TypeScript library for accessing and downloading Maktabah Shamela v4 APIs. The package runs in both Node.js and modern browsers, providing ergonomic helpers to interact with the Shamela API, download master and book databases, and retrieve book data programmatically.
 
+> [!WARNING]
+> ## API Key Notice
+> 
+> **This library requires an API key to access Shamela's APIs.** I cannot provide API keys and am unable to assist with API key requests.
+> 
+> **Please do not:**
+> - Open issues asking for API keys
+> - Contact me directly for API access
+> 
+> **For API key inquiries, please email:** [mail@shamela.ws](mailto:mail@shamela.ws)
+
 ## Features
 
 - 🚀 **Full data lifecycle** – fetch metadata, download master and book databases, and query the results entirely in-memory.
