@@ -59,9 +59,10 @@ A universal TypeScript library for accessing and downloading Maktabah Shamela v4
   - [Data Access](#data-access)
     - [getBook](#getbook)
     - [getMaster](#getmaster)
+    - [denormalizeBooks](#denormalizebooks)
   - [Content Utilities](#content-utilities)
     - [parseContentRobust](#parsecontentrobust)
-    - [sanitizePageContent](#sanitizepagecontent)
+    - [mapPageCharacterContent](#mappagecharactercontent)
     - [splitPageBodyFromFooter](#splitpagebodyfromfooter)
     - [removeArabicNumericPageMarkers](#removearabicnumericpagemarkers)
     - [removeTagsExceptSpan](#removetagsexceptspan)
@@ -198,14 +199,14 @@ If you only need the content processing utilities (sanitization, parsing, etc.) 
 
 ```typescript
 import {
-  sanitizePageContent,
+  mapPageCharacterContent,
   splitPageBodyFromFooter,
   removeTagsExceptSpan,
   parseContentRobust,
 } from 'shamela/content';
 
 // Process content without loading sql.js (~1.5KB gzipped vs ~900KB)
-const clean = removeTagsExceptSpan(sanitizePageContent(rawContent));
+const clean = removeTagsExceptSpan(mapPageCharacterContent(rawContent));
 const [body, footnotes] = splitPageBodyFromFooter(clean);
 ```
 
@@ -227,6 +228,9 @@ This is ideal for:
 - `normalizeTitleSpans` - Handle consecutive title spans (merge, split, or hierarchy)
 - `moveContentAfterLineBreakIntoSpan` - Move pre-title text into the span
 - `convertContentToMarkdown` - Full pipeline: normalize spans → move pre-title text → convert to Markdown
+
+**Available exports from `shamela/transform`:**
+- `denormalizeBooks` - Resolve relationships in MasterData to return rich book objects
 
 ### Extending Content Processing Rules
 
@@ -435,6 +439,25 @@ console.log(master.authors.length);
 console.log(master.categories.length);
 ```
 
+#### denormalizeBooks
+
+Resolves the relationships within the `MasterData` object, returning a flat list of books where author and category IDs have been replaced with their respective objects. It also parses complex fields like `metadata` and `pdf_links`.
+
+```typescript
+denormalizeBooks(master: MasterData): DenormalizedBook[]
+```
+
+```typescript
+const master = await getMaster();
+const books = denormalizeBooks(master);
+
+const library = books[0];
+console.log(library.name);
+console.log(library.author.name);
+console.log(library.category.name);
+console.log(library.metadata.date);
+```
+
 ### Content Utilities
 
 #### parseContentRobust
@@ -450,12 +473,12 @@ const lines = parseContentRobust(rawHtml);
 lines.forEach((line) => console.log(line.id, line.text));
 ```
 
-#### sanitizePageContent
+#### mapPageCharacterContent
 
 Normalises page content by applying regex-based replacement rules tuned for Shamela sources.
 
 ```typescript
-sanitizePageContent(text: string, rules?: Record<string, string>): string
+mapPageCharacterContent(text: string, rules?: Record<string, string>): string
 ```
 
 #### splitPageBodyFromFooter
@@ -717,7 +740,7 @@ type Title = {
 ### Content Helpers
 
 - `parseContentRobust(content: string)`: Converts Shamela page HTML into structured lines
-- `sanitizePageContent(content: string)`: Removes footnote markers and normalizes text
+- `mapPageCharacterContent(content: string)`: Removes footnote markers and normalizes text
 - `splitPageBodyFromFooter(content: string)`: Separates page content from footnotes
 - `removeArabicNumericPageMarkers(text: string)`: Removes Arabic page number markers
 - `removeTagsExceptSpan(content: string)`: Strips HTML tags except span elements
@@ -799,6 +822,7 @@ Run tests with Bun:
 ```bash
 bun test src              # Unit tests
 bun run e2e               # End-to-end tests
+bun run test:exports      # Build-output validation
 bun run format            # Format code
 bun run lint              # Lint code
 ```

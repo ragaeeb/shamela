@@ -33,13 +33,13 @@ export type Unique = {
 export type AuthorRow = Deletable &
     Unique & {
         /** Author biography */
-        biography: string;
+        biography: string | null;
 
-        /** Death year */
+        /** Death year or UNKNOWN_VALUE_PLACEHOLDER */
         death_number: string;
 
         /** The death year as a text */
-        death_text: string;
+        death_text: string | null;
 
         /** Author name */
         name: string;
@@ -63,7 +63,7 @@ export type BookRow = Deletable &
         date: string;
 
         /** Hint or description */
-        hint: string;
+        hint: string | null;
 
         /** Major version */
         major_release: string;
@@ -78,7 +78,7 @@ export type BookRow = Deletable &
         name: string;
 
         /** Serialized PDF links */
-        pdf_links: string;
+        pdf_links: string | null;
 
         /** Printed flag */
         printed: string;

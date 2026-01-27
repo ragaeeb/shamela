@@ -93,8 +93,9 @@ shamela/
 │   │   ├── components/           # React components
 │   │   └── page.tsx              # Main demo page
 │   └── lib/shamela.ts            # Server-side Shamela configuration
-├── testing/                      # End-to-end tests
-│   └── e2e.test.ts               # E2E test suite
+├── testing/                      # External test suites
+│   ├── e2e.test.ts               # E2E test suite (requires network)
+│   └── exports.test.ts           # Build-output validation (runs post-build)
 ├── dist/                         # Compiled output (generated)
 ├── biome.json                    # Linting and formatting configuration
 ├── tsconfig.json                 # TypeScript configuration
@@ -109,8 +110,19 @@ shamela/
 | `src/api.ts` | Primary API functions for downloading and retrieving book/master data |
 | `src/config.ts` | Runtime configuration with environment variable fallbacks |
 | `src/content.ts` | Browser-safe HTML parsing and Arabic text processing |
+| `src/transform.ts` | Data transformation and denormalization utilities |
 | `src/db/sqlite.ts` | sql.js database initialization and WASM loading |
 | `src/utils/constants.ts` | Exportable constants including `DEFAULT_MAPPING_RULES` |
+| `src/utils/network.ts` | HTTP utilities (`buildUrl`, `httpsGet`) with auth support |
+| `src/utils/logger.ts` | Configurable internal logging system |
+
+### Data Transformation Utilities
+
+The `src/transform.ts` module provides utilities for converting raw database rows into rich, nested JavaScript objects:
+
+| Function | Purpose |
+|----------|---------|
+| `denormalizeBooks` | Resolves the relationships in `MasterData` to return an array of books with their authors and categories attached |
 
 ### Span Handling Utilities
 
@@ -143,6 +155,7 @@ The library uses conditional exports for browser/Node.js compatibility:
 |--------|-------------|-------------|
 | `shamela` | `src/index.ts` | Full API including sql.js (Node.js/server-side) |
 | `shamela/content` | `src/content.ts` | Content utilities only, browser-safe (~1.5KB gzipped) |
+| `shamela/transform` | `src/transform.ts` | Data transformation and denormalization |
 | `shamela/types` | `src/types.ts` | Type definitions only |
 | `shamela/constants` | `src/utils/constants.ts` | Constants like `DEFAULT_MAPPING_RULES` for extending content processing |
 
@@ -212,7 +225,19 @@ RUN_E2E=true bun test e2e
 
 # Run all tests
 bun test
+
+# Run build-output validation (manually)
+bun run test:exports
 ```
+
+### Build Validation
+
+The library includes a strict build-output validation test in `testing/exports.test.ts`. This test:
+1. Runs automatically via the `postbuild` script after every successful `bun run build`.
+2. Uses `tsc --noEmit` to verify that all documented types are correctly exported and usable from the `dist` bundle.
+3. Uses `bun test` to verify that all functions and constants are physically present in the compiled JavaScript.
+
+This prevents regression errors where a package entry point might compile but fail to expose the expected public API.
 
 ### Test Conventions
 

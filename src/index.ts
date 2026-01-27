@@ -1,7 +1,9 @@
 export * from './api';
 export type { ConfigureOptions } from './config';
-export { configure, resetConfig } from './config';
+export { configure, getConfig, getConfigValue, requireConfigValue, resetConfig } from './config';
 export * from './content';
+export * from './transform';
 export * from './types';
-export { DEFAULT_MAPPING_RULES, FOOTNOTE_MARKER } from './utils/constants';
+export * from './utils/constants';
 export type { Logger } from './utils/logger';
+export * from './utils/network';
