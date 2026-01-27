@@ -52,6 +52,7 @@ describe('denormalizeBooks', () => {
                 bibliography: 'B',
                 category: { id: 23, name: 'الرقائق والآداب والأذكار', order: 23 },
                 date: 751,
+                id: 11797,
                 metadata: { date: '06091442', group: 6666, min_ver: 2, prefix: 'رسالة ابن القيم إلى أحد إخوانه' },
                 name: 'N',
                 pdf_links: {
@@ -95,6 +96,7 @@ describe('denormalizeBooks', () => {
                 bibliography: 'B',
                 category: { id: 23, name: 'الرقائق والآداب والأذكار', order: 23 },
                 date: 275,
+                id: 6785,
                 metadata: { coauthor: [{ biography: 'Bio', death: 751, id: 14, name: 'ابن القيم' }], date: '08121431' },
                 name: 'الورع - المروذي',
                 printed: 1,
@@ -131,6 +133,7 @@ describe('denormalizeBooks', () => {
                 bibliography: 'B',
                 category: { id: 23, name: 'الرقائق والآداب والأذكار', order: 23 },
                 date: 902,
+                id: 7434,
                 metadata: {
                     date: '08121431',
                     group: 7434,
@@ -152,11 +155,11 @@ describe('denormalizeBooks', () => {
     });
 
     it('should handle unknown date placeholder, hints, and missing author info', () => {
-        const minimalAuthor: Author = {
+        const minimalAuthor = {
             id: 15,
             is_deleted: '0',
             name: 'Minimal Author',
-        };
+        } as any;
 
         const book = {
             author: '15',
@@ -183,6 +186,7 @@ describe('denormalizeBooks', () => {
         expect(actual[0].hint).toBe('Some hint');
         expect(actual[0].author).toEqual({ id: 15, name: 'Minimal Author' });
         expect(actual[0].version).toBe('1.2');
+        expect(actual[0].id).toBe(123);
     });
 
     it('should handle complex pdf info and metadata shorts', () => {
@@ -211,5 +215,72 @@ describe('denormalizeBooks', () => {
             files: [{ name: 'file.pdf' }],
             folder: [1, 'path'],
         });
+        expect(actual[0].id).toBe(456);
+    });
+
+    it('should handle comma-separated authors in book.author', () => {
+        const author2 = {
+            id: 15,
+            is_deleted: '0',
+            name: 'Author 2',
+        };
+
+        const book = {
+            author: '14, 15',
+            category: '23',
+            id: 123,
+            major_release: '1',
+            metadata: '{"date": "20230101"}',
+            minor_release: '0',
+            name: 'Multi-Author Book',
+            printed: '1',
+        };
+
+        const actual = denormalizeBooks({
+            authors: [author, author2] as any,
+            books: [book as any],
+            categories: [category],
+            version: 0,
+        });
+
+        expect(actual[0].author.id).toBe(14);
+        expect(actual[0].metadata.coauthor).toHaveLength(1);
+        expect(actual[0].metadata.coauthor![0].id).toBe(15);
+    });
+
+    it('should merge comma-separated authors with existing coauthors in metadata', () => {
+        const author2 = {
+            id: 15,
+            is_deleted: '0',
+            name: 'Author 2',
+        };
+        const author3 = {
+            id: 16,
+            is_deleted: '0',
+            name: 'Author 3',
+        };
+
+        const book = {
+            author: '14,15',
+            category: '23',
+            id: 123,
+            major_release: '1',
+            metadata: '{"date": "20230101", "coauthor": [16]}',
+            minor_release: '0',
+            name: 'Multi-Author Book',
+            printed: '1',
+        };
+
+        const actual = denormalizeBooks({
+            authors: [author, author2, author3] as any,
+            books: [book as any],
+            categories: [category],
+            version: 0,
+        });
+
+        expect(actual[0].author.id).toBe(14);
+        expect(actual[0].metadata.coauthor).toHaveLength(2);
+        expect(actual[0].metadata.coauthor![0].id).toBe(16);
+        expect(actual[0].metadata.coauthor![1].id).toBe(15);
     });
 });

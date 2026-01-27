@@ -98,7 +98,7 @@ const parseBookMetadata = (metadata: Record<string, any>, idToAuthor: Record<str
 };
 
 const parsePdfLinks = (pdf: Record<string, any>): PdfInfo => {
-    const files = (pdf.files as string[]).map((f) => {
+    const files = (pdf.files || []).map((f: string) => {
         const [name, part] = f.split('|');
         return { ...(part && { part }), name };
     });
@@ -115,13 +115,21 @@ const parsePdfLinks = (pdf: Record<string, any>): PdfInfo => {
 export const denormalizeBooks = (master: MasterData): DenormalizedBook[] => {
     const indexes = indexStructures(master);
     const result = master.books.map((book) => {
+        const [author, ...coauthors] = book.author.split(/, ?/).map((a) => denormalizeAuthor(indexes.idToAuthor[a]));
+        const metadata = parseBookMetadata(JSON.parse(book.metadata), indexes.idToAuthor);
+
+        if (coauthors.length) {
+            metadata.coauthor = (metadata.coauthor || []).concat(coauthors);
+        }
+
         return {
-            author: denormalizeAuthor(indexes.idToAuthor[book.author]),
+            author,
             bibliography: book.bibliography,
             category: denormalizeCategory(indexes.idToCategory[book.category]),
             ...(book.date !== UNKNOWN_VALUE_PLACEHOLDER && { date: Number(book.date) }),
             ...(book.hint && { hint: book.hint }),
-            metadata: parseBookMetadata(JSON.parse(book.metadata), indexes.idToAuthor),
+            id: book.id,
+            metadata,
             name: book.name,
             ...(book.pdf_links && { pdf_links: parsePdfLinks(JSON.parse(book.pdf_links)) }),
             printed: Number(book.printed),
