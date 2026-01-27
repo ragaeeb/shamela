@@ -28,11 +28,9 @@ export type BookMetadata = {
     hide_diacritic?: boolean;
 };
 
-export type DenormalizedBook = {
+export type DenormalizedBook = Pick<Book, 'id' | 'bibliography' | 'name'> & {
     author: DenormalizedAuthor;
-    bibliography?: string;
     date?: number;
-    name: string;
     hint?: string;
     type?: number;
     category: DenormalizedCategory;
