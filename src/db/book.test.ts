@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-
-import { createDatabase, type SqliteDatabase } from './sqlite';
 import { applyPatches, copyTableData, createTables, getData } from './book';
+import { createDatabase, type SqliteDatabase } from './sqlite';
 import { Tables } from './types';
 
 const insertRow = (db: SqliteDatabase, table: Tables, values: Record<string, any>) => {

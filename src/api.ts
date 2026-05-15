@@ -113,10 +113,11 @@ const setupBookDatabase = async (
  */
 const setupMasterDatabase = async (
     masterMetadata?: GetMasterMetadataResponsePayload,
+    forceVersion?: number,
 ): Promise<{ client: SqliteDatabase; cleanup: () => Promise<void>; version: number }> => {
     logger.info('Setting up master database');
 
-    const masterResponse = masterMetadata || (await getMasterMetadata(DEFAULT_MASTER_METADATA_VERSION));
+    const masterResponse = masterMetadata || (await getMasterMetadata(forceVersion ?? DEFAULT_MASTER_METADATA_VERSION));
 
     logger.info(`Downloading master database ${masterResponse.version} from: ${redactUrl(masterResponse.url)}`);
     const sourceTables = await unzipFromUrl(fixHttpsProtocol(masterResponse.url));
@@ -396,12 +397,13 @@ export const getBook = async (id: number): Promise<BookData> => {
  * SQLite database, and returns structured data for immediate consumption alongside
  * the version number of the snapshot.
  *
+ * @param forceVersion - Optional version number to fetch a specific master database snapshot (defaults to DEFAULT_MASTER_METADATA_VERSION)
  * @returns A promise that resolves to the complete master dataset and its version
  */
-export const getMaster = async (): Promise<MasterData> => {
+export const getMaster = async (forceVersion = DEFAULT_MASTER_METADATA_VERSION): Promise<MasterData> => {
     logger.info('getMaster');
 
-    const { client, cleanup, version } = await setupMasterDatabase();
+    const { client, cleanup, version } = await setupMasterDatabase(undefined, forceVersion);
 
     try {
         return getMasterData(client, version);
