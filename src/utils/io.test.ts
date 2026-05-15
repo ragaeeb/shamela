@@ -1,5 +1,5 @@
-import { zipSync } from 'fflate';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
+import { zipSync } from 'fflate';
 
 import { unzipFromUrl } from './io';
 

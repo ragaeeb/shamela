@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-
-import { createDatabase, type SqliteDatabase } from './sqlite';
 import { copyForeignMasterTableData, createTables, getData } from './master';
+import { createDatabase, type SqliteDatabase } from './sqlite';
 import { Tables } from './types';
 
 type SourceTable = { name: string; data: Uint8Array };
@@ -94,7 +93,7 @@ describe('master database helpers', () => {
     it('preserves deletion flags from source tables', async () => {
         const authors = await createSourceTable(Tables.Authors, [{ id: 1, is_deleted: '1', name: 'Removed' }]);
         const books = await createSourceTable(Tables.Books, [
-            { id: 1, is_deleted: '1', name: 'Removed', author: null },
+            { author: null, id: 1, is_deleted: '1', name: 'Removed' },
         ]);
         const categories = await createSourceTable(Tables.Categories, [
             { id: 1, is_deleted: '1', name: 'Removed', order: null },

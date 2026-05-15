@@ -40,10 +40,10 @@ const buildMasterArchive = async () => {
 };
 
 describe('api helpers', () => {
-    const fetchMock = mock<typeof fetch>(async () => new Response(null));
+    const fetchMock = mock((..._args: any[]) => Promise.resolve(new Response(null)));
 
     beforeAll(() => {
-        globalThis.fetch = fetchMock as typeof fetch;
+        globalThis.fetch = fetchMock as any;
     });
 
     beforeEach(() => {
@@ -101,7 +101,7 @@ describe('api helpers', () => {
     it('downloadMasterDatabase writes json output including version metadata', async () => {
         const archive = await buildMasterArchive();
         fetchMock.mockResolvedValueOnce(
-            new Response(archive, { headers: { 'content-type': 'application/octet-stream' } }),
+            new Response(archive as any, { headers: { 'content-type': 'application/octet-stream' } }),
         );
 
         const chunks: string[] = [];
@@ -109,9 +109,10 @@ describe('api helpers', () => {
             masterMetadata: { url: 'http://files.example.com/master.zip', version: 42 },
             outputFile: {
                 path: '/tmp/master.json',
-                writer: (payload) =>
-                    chunks.push(typeof payload === 'string' ? payload : new TextDecoder().decode(payload)),
-            },
+                writer: (payload: string | Uint8Array) => {
+                    chunks.push(typeof payload === 'string' ? payload : new TextDecoder().decode(payload));
+                },
+            } as any,
         });
 
         expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -130,7 +131,7 @@ describe('api helpers', () => {
             }),
         );
         fetchMock.mockResolvedValueOnce(
-            new Response(archive, { headers: { 'content-type': 'application/octet-stream' } }),
+            new Response(archive as any, { headers: { 'content-type': 'application/octet-stream' } }),
         );
 
         const result = await getMaster();
@@ -141,5 +142,26 @@ describe('api helpers', () => {
         expect(result.books).toHaveLength(1);
         expect(result.categories).toHaveLength(1);
         expect(result.authors[0].name).toBe('Author');
+    });
+
+    it('getMaster(forceVersion) fetches metadata for specific version', async () => {
+        const archive = await buildMasterArchive();
+        // First fetch: getMasterMetadata
+        fetchMock.mockResolvedValueOnce(
+            new Response(JSON.stringify({ patch_url: 'http://files.example.com/master.zip', version: 99 }), {
+                headers: { 'content-type': 'application/json' },
+            }),
+        );
+        // Second fetch: download archive
+        fetchMock.mockResolvedValueOnce(
+            new Response(archive as any, { headers: { 'content-type': 'application/octet-stream' } }),
+        );
+
+        const result = await getMaster(99);
+
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        const metadataUrl = fetchMock.mock.calls[0][0] as string;
+        expect(metadataUrl).toContain('version=99');
+        expect(result.version).toBe(99);
     });
 });
